@@ -11,8 +11,27 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     /* Bottom overlay info bar (Depth + Water Temp) */
-    .video-infobar{ position:absolute; left:.5rem; right:.5rem; bottom:.5rem; display:flex; align-items:center; gap:.75rem; background:rgba(0,0,0,.65); border:1px solid rgba(255,255,255,.15); border-radius:.5rem; padding:.35rem .5rem; pointer-events:none; z-index:102; }
-    .video-infobar .row{ display:flex; align-items:center; gap:.4rem; padding:.15rem .45rem; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:.375rem; }
+  .video-infobar{ position:absolute; left:.5rem; right:.5rem; bottom:.5rem; display:flex; align-items:stretch; justify-content:space-between; gap:.5rem; background:rgba(0,0,0,.65); border:1px solid rgba(255,255,255,.15); border-radius:.5rem; padding:.35rem .5rem; pointer-events:auto; z-index:102; }
+  .video-infobar .row{ flex:1 1 0; display:flex; align-items:center; justify-content:center; gap:.35rem; padding:.18rem .5rem; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:.375rem; min-width:0; }
+  .video-infobar .row .lbl{ white-space:nowrap; }
+  .video-infobar .row .val{ white-space:nowrap; }
+  .video-infobar .row.interact{ cursor:pointer; user-select:none; position:relative; transition:background-color .18s ease, border-color .18s ease, box-shadow .25s ease, transform .15s ease; }
+  .video-infobar .row.interact:focus-visible{ outline:2px solid #60a5fa; outline-offset:2px; }
+  .video-infobar .row.interact::after{ content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; opacity:0; background:radial-gradient(circle at 50% 50%, rgba(255,255,255,.25), rgba(255,255,255,0) 65%); transition:opacity .25s ease; }
+  .video-infobar .row.interact:hover{ background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.25); box-shadow:0 0 0 1px rgba(255,255,255,.08), 0 2px 6px -1px rgba(0,0,0,.6), 0 4px 14px -2px rgba(0,0,0,.55); }
+  .video-infobar .row.interact:hover::after{ opacity:.6; }
+  .video-infobar .row.interact:active{ transform:translateY(1px); background:rgba(255,255,255,.16); }
+  /* Persistent highlight when a popover/open state is active */
+  .video-infobar .row.interact[aria-expanded="true"],
+  .video-infobar .row.interact[aria-pressed="true"]{ background:rgba(96,165,250,.18); border-color:rgba(96,165,250,.45); box-shadow:0 0 0 1px rgba(96,165,250,.35), 0 0 12px -2px rgba(59,130,246,.55); }
+  .video-infobar .row.interact[aria-expanded="true"]::after,
+  .video-infobar .row.interact[aria-pressed="true"]::after{ opacity:.4; background:radial-gradient(circle at 50% 50%, rgba(96,165,250,.55), rgba(96,165,250,0) 70%); }
+  /* Generic popover (not used now for light) */
+  .popover{ position:absolute; background:rgba(17,24,39,.95); border:1px solid rgba(55,65,81,.8); border-radius:.5rem; box-shadow:0 8px 20px rgba(0,0,0,.45); z-index:350; }
+  .popover.hidden{ display:none; }
+  /* Light popover anchored to its row */
+  #light-row{ position:relative; overflow:visible; }
+  /* Light popover inherits generic .popover positioning (like tilt) for consistent alignment */
     .video-infobar .lbl{ font-size:.7rem; color:#9ca3af; }
     .video-infobar .val{ font-size:.85rem; font-weight:700; color:#e5e7eb; }
     body.compact .video-infobar{ bottom:.35rem; padding:.25rem .4rem; }
@@ -22,6 +41,19 @@
 
     .widget { background-color: var(--panel-2); border:1px solid var(--stroke); border-radius:0.75rem; padding:1rem; box-shadow:0 4px 6px -1px rgb(0 0 0 / .25), 0 2px 4px -2px rgb(0 0 0 / .2); display:flex; flex-direction:column; }
     .progress-bar-bg { background-color: var(--panel-1); }
+  /* Enhanced battery power meter */
+  .power-meter{ background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02)); position:relative; }
+  .power-meter::before{ content:""; position:absolute; inset:0; background:repeating-linear-gradient(90deg, rgba(255,255,255,.07) 0 1px, transparent 1px 32px); pointer-events:none; mix-blend-mode:overlay; opacity:.4; }
+  .power-meter .center-line{ background:rgba(255,255,255,.65); }
+  .power-fill{ position:absolute; top:0; bottom:0; width:0; transition:width .28s cubic-bezier(.4,.0,.2,1); }
+  .power-fill-charge{ right:50%; background:linear-gradient(90deg,#064e3b,#0d825f,#10b981); box-shadow:inset 0 0 4px rgba(16,185,129,.55); }
+  .power-fill-draw{ left:50%; background:linear-gradient(90deg,#b91c1c,#dc2626,#ef4444); box-shadow:inset 0 0 4px rgba(239,68,68,.55); }
+  .power-end-label{ position:absolute; top:50%; transform:translateY(-50%); font-size:9px; font-weight:600; letter-spacing:.5px; padding:1px 4px; border-radius:4px; background:rgba(0,0,0,.35); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); color:#cbd5e1; pointer-events:none; }
+  .power-end-label.charge{ left:4px; }
+  .power-end-label.draw{ right:4px; }
+  .power-meter .tick{ position:absolute; top:2px; bottom:2px; width:2px; background:rgba(255,255,255,.18); border-radius:1px; pointer-events:none; }
+  .power-meter .tick.major{ background:rgba(255,255,255,.28); }
+  @media (prefers-reduced-motion:reduce){ .power-fill{ transition:none; } }
     .status-indicator-dot { width:10px; height:10px; border-radius:50%; }
     .pulse-anim { animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
     @keyframes pulse { 50% { opacity:.5 } }
@@ -31,11 +63,16 @@
 
     .video-wrap{ position:relative; background:#000; border:1px solid var(--stroke); border-radius:.75rem; overflow:hidden; min-height:62vh; display:flex; align-items:center; justify-content:center; }
     .video-canvas{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; background: radial-gradient(1200px 600px at 50% 40%, rgba(255,255,255,.05), rgba(0,0,0,.4) 60%, rgba(0,0,0,.8)); }
+    /* When right dock hidden, reserve space for infobar so video content stays above it */
+    .video-canvas.no-dock{ height:calc(100% - var(--infobar-h,60px)); margin-bottom:var(--infobar-h,60px); transition:height .25s ease, margin-bottom .25s ease; }
 .video-el{ width:100%; height:100%; object-fit:contain; aspect-ratio: 9 / 16; background:#000; display:block; }
     .hud{ pointer-events:none; position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-start; z-index:2; }
     .video-play-btn{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:5; padding:.4rem .9rem; border-radius:.5rem; border:1px solid rgba(255,255,255,.25); background:rgba(0,0,0,.65); color:#fff; font-size:.875rem; display:none; }
     .video-play-btn:focus{ outline:2px solid #60a5fa; outline-offset:2px; }
-    .video-load-btn{ position:absolute; left:.5rem; bottom:.5rem; z-index:6; padding:.3rem .6rem; border-radius:.375rem; border:1px solid rgba(255,255,255,.25); background:rgba(0,0,0,.6); color:#fff; font-size:.75rem; display:inline-block; }
+  /* Elevated above infobar (z-index 102) so it remains clickable */
+  /* Load button repositioned above bottom info bar */
+  .video-load-btn{ position:absolute; left:.5rem; bottom:4.25rem; z-index=210; padding:.35rem .7rem; border-radius:.45rem; border:1px solid rgba(255,255,255,.25); background:rgba(0,0,0,.6); color:#fff; font-size:.75rem; display:inline-block; backdrop-filter:blur(3px) saturate(130%); -webkit-backdrop-filter:blur(3px) saturate(130%); }
+  @media (max-width:800px){ .video-load-btn{ bottom:5rem; } }
     .reticle{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:110px; height:110px; border:1px solid rgba(255,255,255,.25); border-radius:999px; box-shadow:0 0 0 1px rgba(255,255,255,.08) inset; }
     .reticle::before,.reticle::after{ content:""; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:rgba(255,255,255,.15); }
     .reticle::before{ width:1px; height:120px; } .reticle::after{ width:120px; height:1px; }
@@ -66,9 +103,18 @@
     .depth-tick.m5 .lbl{ color:#ffffff; }
     .compass-ribbon{ position:absolute; left:50%; top:calc(5% + 10px); transform:translateX(-50%) scale(var(--compass-scale,1)); transform-origin:center top; width:min(780px,90%); height:50px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.12); border-radius:.5rem; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.35); pointer-events:none; z-index:100; -webkit-mask-image:linear-gradient(90deg, rgba(0,0,0,0) 0%, #000 45%, #000 55%, rgba(0,0,0,0) 100%); mask-image:linear-gradient(90deg, rgba(0,0,0,0) 0%, #000 45%, #000 55%, rgba(0,0,0,0) 100%); }
     .compass-ribbon::after{ content:""; position:absolute; inset:0; background:linear-gradient(90deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.5) 100%); pointer-events:none; }
+      .heading-box{ position:absolute; left:50%; top:calc(5% - 30px); transform:translateX(-50%); z-index:101; display:flex; flex-direction:column; align-items:center; pointer-events:none; }
+      .heading-box .readout{ font-size:14px; font-weight:700; letter-spacing:.1em; padding:.25rem .55rem; background:rgba(0,0,0,.65); border:1px solid rgba(255,255,255,.18); border-radius:.4rem; box-shadow:0 2px 6px rgba(0,0,0,.35); color:#f1f5f9; backdrop-filter:blur(3px) saturate(140%); -webkit-backdrop-filter:blur(3px) saturate(140%); text-shadow:0 0 4px rgba(0,0,0,.7); }
+      .heading-box .pointer-wrap{ position:relative; width:100%; height:14px; }
+      .heading-box .pointer-line{ position:absolute; left:50%; top:4px; bottom:-6px; width:3px; background:linear-gradient(to bottom,#f8fafc,#94a3b8 55%,#64748b); border-radius:3px; box-shadow:0 0 4px rgba(255,255,255,.65),0 0 6px rgba(148,163,184,.35); transform:translateX(-50%); }
+      .heading-box .pointer-line::after{ content:""; position:absolute; left:50%; bottom:-1px; transform:translateX(-50%); width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:9px solid #f1f5f9; filter:drop-shadow(0 0 3px rgba(255,255,255,.75)) drop-shadow(0 0 2px rgba(0,0,0,.8)); }
+      .heading-box .pointer-cap{ display:none; }
     .compass-track{ position:absolute; top:0; left:0; height:100%; display:flex; align-items:flex-end; will-change:transform; }
     .compass-center{ position:absolute; top:4px; bottom:4px; left:50%; width:2px; transform:translateX(-50%); background:#f59e0b; box-shadow:0 0 6px rgba(245,158,11,.8); border-radius:1px; }
     .rec-badge{ position:absolute; top:1rem; left:.5rem; background:rgba(0,0,0,.65); border:1px solid rgba(255,255,255,.12); border-radius:.375rem; padding:.25rem .5rem; font-size:.75rem; display:flex; align-items:center; gap:.4rem; z-index:101; pointer-events:none; }
+  /* Recording dot slow flash */
+  @keyframes recFlash{ 0%{ transform:scale(1); opacity:1; box-shadow:0 0 4px rgba(239,68,68,.9),0 0 8px rgba(239,68,68,.5); } 50%{ transform:scale(.55); opacity:.35; box-shadow:0 0 2px rgba(239,68,68,.4); } 100%{ transform:scale(1); opacity:1; box-shadow:0 0 4px rgba(239,68,68,.9),0 0 10px rgba(239,68,68,.55); } }
+  .rec-dot-flash{ animation:recFlash 1.8s ease-in-out infinite; }
 
     /* Compass label styles */
     .compass-label{ font-size:10px; color:#e5e7eb; text-shadow:0 1px 2px rgba(0,0,0,.65); line-height:1; }
@@ -200,12 +246,33 @@
     .dock-static .dock-panel h3{ font-size:.9rem; font-weight:700; padding:.5rem .6rem; border-bottom:1px solid rgba(55,65,81,.6); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border-top-left-radius:.5rem; border-top-right-radius:.5rem; }
     .dock-static .dock-panel .dock-body{ padding:.5rem .6rem; font-size:.8rem; color:#9ca3af; overflow:hidden; }
 
+  /* Surface Power OFF visual state */
+  .surface-power-off #surface-power-widget{ filter:grayscale(.55) brightness(.85); }
+  .surface-power-off .gauge .arc{ stroke:#64748b !important; opacity:.35; }
+  .surface-power-off .gauge .track{ opacity:.25; }
+  .surface-power-off .gauge .center .big{ opacity:.4; }
+  .surface-power-off .pill .num{ opacity:.45; }
+  .surface-power-off .pill div[id$='status']{ opacity:.5; }
+
     /* Collapsible dock panels */
     .dock-static .dock-panel h3{ display:flex; align-items:center; justify-content:space-between; }
     .dock-toggle{ appearance:none; border:1px solid rgba(148,163,184,.35); background:rgba(0,0,0,.2); color:#e5e7eb; border-radius:.375rem; padding:.15rem .35rem; font-size:.75rem; line-height:1; cursor:pointer; }
     .dock-toggle:focus-visible{ outline:2px solid #60a5fa; outline-offset:2px; }
     .dock-panel.collapsed .dock-body{ display:none; }
     .dock-panel.collapsed h3 .chev{ transform:rotate(-90deg); }
+  /* Mode dropdown styles */
+  .mode-menu{ position:absolute; right:0; top:100%; margin-top:.4rem; min-width:150px; background:rgba(17,24,39,.97); border:1px solid rgba(55,65,81,.8); border-radius:.55rem; box-shadow:0 8px 20px rgba(0,0,0,.5); padding:.4rem; display:flex; flex-direction:column; gap:.3rem; z-index:650; }
+  .mode-menu .mode-opt{ text-align:left; font-size:.7rem; padding:.35rem .55rem; border:1px solid rgba(148,163,184,.3); background:rgba(255,255,255,.03); color:#e5e7eb; border-radius:.4rem; line-height:1.05; letter-spacing:.5px; font-weight:600; }
+  .mode-menu .mode-opt:hover{ background:rgba(59,130,246,.18); border-color:rgba(96,165,250,.45); }
+  .mode-menu .mode-opt[aria-selected="true"]{ background:rgba(34,197,94,.18); border-color:rgba(34,197,94,.5); color:#6ee7b7; }
+
+  /* --- Square corners experiment (remove rounded edges) --- */
+  body.square-corners * { border-radius:0 !important; }
+  /* Preserve intentional circular/round indicators */
+  body.square-corners .status-indicator-dot,
+  body.square-corners #rec-dot,
+  body.square-corners .reticle { border-radius:50% !important; }
+  /* Restore tiny range thumbs / gauge dots if any custom radius needed (none currently) */
 
     /* Dock resizer between video and dock */
     .dock-resizer{ flex:0 0 6px; cursor:col-resize; background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border-left:1px solid rgba(255,255,255,.08); border-right:1px solid rgba(0,0,0,.35); position:relative; }
@@ -237,7 +304,7 @@
     #main{ position:relative; }
   </style>
 </head>
-<body class="compact">
+<body class="compact square-corners">
   <div class="app-grid">
     <!-- TOP BAR -->
     <header id="topbar" class="widget !flex-row !items-center !justify-between gap-2 top-compact">
@@ -247,8 +314,8 @@
           <h4>Display</h4>
           <div class="row"><label for="chk-dock">Right Dock</label><input id="chk-dock" type="checkbox" checked></div>
           <div class="row"><label for="chk-panel-stitcher">Stitcher Panel</label><input id="chk-panel-stitcher" type="checkbox" checked></div>
-          <div class="row"><label for="chk-panel-aux">Controls Panel</label><input id="chk-panel-aux" type="checkbox" checked></div>
           <div class="row"><label for="chk-panel-power">Battery Panel</label><input id="chk-panel-power" type="checkbox" checked></div>
+          <div class="row"><label for="chk-panel-surface">Surface Power Panel</label><input id="chk-panel-surface" type="checkbox" checked></div>
           <div class="row"><label for="chk-compass">Compass Ribbon</label><input id="chk-compass" type="checkbox" checked></div>
           <div class="row"><label for="chk-depth">Depth Ribbon</label><input id="chk-depth" type="checkbox" checked></div>
           <div class="row"><label for="chk-infobar">Bottom Info Bar</label><input id="chk-infobar" type="checkbox" checked></div>
@@ -263,7 +330,14 @@
         <span id="status-text" class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs flex items-center gap-2 text-green-400">
           <span id="status-indicator" class="status-indicator-dot bg-green-400 pulse-anim"></span> ARMED
         </span>
-        <span id="mode-pill" class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs text-gray-200">STABILIZE</span>
+        <div id="mode-picker" class="relative">
+          <button id="mode-pill" type="button" class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs text-gray-200 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-sky-500/60" aria-haspopup="true" aria-expanded="false" aria-label="Select ROV mode">DEPTH HOLD ▾</button>
+          <div id="mode-menu" class="mode-menu hidden" role="menu" aria-label="Select ROV mode">
+            <button type="button" role="menuitem" class="mode-opt" data-mode="DEPTH HOLD">DEPTH HOLD</button>
+            <button type="button" role="menuitem" class="mode-opt" data-mode="MANUAL">MANUAL</button>
+            <button type="button" role="menuitem" class="mode-opt" data-mode="FREEDOF">FREEDOF</button>
+          </div>
+        </div>
         <span class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs text-gray-200">Uptime <span id="uptime-value" class="font-semibold ml-1 num">00:00:00</span></span>
         <span class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs flex items-center gap-2">
           <svg width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M1 9h2V7H1v2Zm3 0h2V5H4v4Zm3 0h2V3H7v6Zm3 0h2V1h-2v8Zm3 0h2V4h-2v5Z" fill="#9ca3af"/></svg>
@@ -290,6 +364,13 @@
               <div class="compass-track" id="compass-track"></div>
               <div class="compass-center"></div>
             </div>
+            <div class="heading-box" id="heading-box" aria-hidden="true">
+              <div class="readout" id="heading-box-value">000°</div>
+              <div class="pointer-wrap">
+                <div class="pointer-line"></div>
+                <div class="pointer-cap"></div>
+              </div>
+            </div>
             <!-- Vertical Depth Ribbon -->
             <div class="depth-ribbon" id="depth-ribbon" aria-label="Depth scale">
               <div class="depth-track" id="depth-track"></div>
@@ -304,8 +385,76 @@
 
           <!-- Bottom video info bar: Depth + Water Temp -->
           <div class="video-infobar" aria-label="Depth and water temperature">
-            <div class="row"><span class="lbl">Depth</span><span id="depth-value" class="val num">12.5 m</span></div>
+            <div id="depth-row" class="row interact" role="button" tabindex="0" aria-haspopup="false" aria-pressed="true">
+              <span class="lbl">Depth</span><span id="depth-value" class="val num">12.5 m</span>
+            </div>
             <div class="row"><span class="lbl">Water</span><span id="water-temp-value" class="val num">18.2°C</span></div>
+            <div id="heading-row" class="row interact" role="button" tabindex="0" aria-haspopup="false" aria-expanded="false" aria-pressed="true">
+              <span class="lbl">Heading</span><span id="heading-value" class="val num">000°</span>
+            </div>
+            <div id="gain-row" class="row interact" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false">
+              <span class="lbl">Gain</span><span id="gain-value" class="val num">50%</span>
+              <div id="gain-popover" class="popover hidden" role="dialog" aria-modal="false" aria-label="Adjust gain">
+                <div class="p-2 flex items-center gap-3">
+                  <input id="gain-pop-slider" type="range" min="0" max="100" step="1" value="50" class="flex-1" aria-label="Gain">
+                  <span id="gain-pop-value" class="text-sm font-semibold num w-12 text-right">50%</span>
+                </div>
+              </div>
+            </div>
+            <div id="tilt-row" class="row interact" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false">
+              <span class="lbl">Tilt</span><span id="tilt-value" class="val num">0°</span>
+              <div id="tilt-popover" class="popover hidden" role="dialog" aria-modal="false" aria-label="Adjust camera tilt">
+                <div class="p-3 flex flex-col gap-3 w-60">
+                  <div class="flex items-center justify-between text-[10px] tracking-wide text-gray-400 px-1">
+                    <span>-90°</span><span>0°</span><span>+90°</span>
+                  </div>
+                  <div class="relative" style="height:110px;">
+                    <svg id="tilt-gauge" viewBox="0 0 200 200" class="block w-full h-full select-none cursor-pointer" aria-label="Camera tilt gauge">
+                      <defs>
+                        <linearGradient id="tiltGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+                          <stop offset="0%" stop-color="#ef4444" stop-opacity=".85"/>
+                          <stop offset="50%" stop-color="#10b981" stop-opacity=".9"/>
+                          <stop offset="100%" stop-color="#3b82f6" stop-opacity=".85"/>
+                        </linearGradient>
+                        <filter id="tiltGlow" x="-40%" y="-40%" width="180%" height="180%">
+                          <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+                          <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.2  0 0 0 0 0.55  0 0 0 0 0.95  0 0 0 0.6 0"/>
+                        </filter>
+                      </defs>
+                      <!-- Right-side vertical semicircle (bottom -90 -> top +90) -->
+                      <path id="tilt-arc-bg" d="M100 190 A90 90 0 0 1 100 10" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="10" stroke-linecap="round" />
+                      <path id="tilt-arc-val" d="M100 190 A90 90 0 0 1 100 10" fill="none" stroke="url(#tiltGrad)" stroke-width="10" stroke-linecap="round" stroke-dasharray="0 999" filter="url(#tiltGlow)" />
+                      <g id="tilt-ticks"></g>
+                      <circle id="tilt-arc-ind" cx="100" cy="190" r="7" fill="#f59e0b" stroke="#fff" stroke-width="2" />
+                      <line id="tilt-ind-line" x1="100" y1="190" x2="125" y2="190" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" />
+                    </svg>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <input id="tilt-pop-slider" type="range" min="-90" max="90" step="1" value="0" class="flex-1" aria-label="Camera tilt">
+                    <span id="tilt-pop-value" class="text-sm font-semibold num w-12 text-right">0°</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="light-row" class="row interact" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false">
+              <span class="lbl">Light</span><span id="light-value" class="val num">35%</span>
+              <div id="light-popover" class="popover hidden" role="dialog" aria-modal="false" aria-label="Adjust light brightness">
+                <div class="p-2 flex items-center gap-3">
+                  <input id="light-pop-slider" type="range" min="0" max="100" step="1" value="35" class="flex-1" aria-label="Light brightness">
+                  <span id="light-pop-value" class="text-sm font-semibold num w-12 text-right">35%</span>
+                </div>
+              </div>
+            </div>
+            <div id="manip-row" class="row interact" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false">
+              <span class="lbl">Manip</span><span id="manip-state-value" class="val num">STOPPED</span>
+              <div id="manip-popover" class="popover hidden" role="dialog" aria-modal="false" aria-label="Manipulator controls">
+                <div class="p-2 flex items-center gap-2">
+                  <button id="manip-open-btn" type="button" class="seg-btn px-2 py-1" aria-label="Open manipulator">Open</button>
+                  <button id="manip-close-btn" type="button" class="seg-btn px-2 py-1" aria-label="Close manipulator">Close</button>
+                  <span class="text-xs text-gray-400 ml-1">(hold)</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <button id="video-play-btn" type="button" aria-label="Play video" class="video-play-btn">Play</button>
@@ -325,8 +474,7 @@
         <!-- Right-side vertical widget: Stitcher -->
         <aside class="dock-static" id="right-dock">
           <div id="panel-stitcher" data-panel-id="panel-stitcher" class="dock-panel" aria-label="Right-side widget dock">
-            <h3>Net Repair
-            </h3>
+            <h3>Net Repair System</h3>
             <div class="dock-body">
               <section id="stitcher-widget" class="stitch-docked">
                 <div class="flex items-center justify-between mb-2">
@@ -357,55 +505,36 @@
               </section>
             </div>
           </div>
-          <!-- Aux Systems panel (separate window) -->
-          <div id="panel-aux" data-panel-id="panel-aux" class="dock-panel" aria-label="Right-side widget dock - Aux Systems">
-            <h3>Controls</h3>
+          <!-- 3D ROV Attitude panel -->
+          <div id="panel-attitude" data-panel-id="panel-attitude" class="dock-panel" aria-label="Right-side widget dock - ROV Attitude">
+            <h3 class="flex items-center justify-between gap-2">ROV Attitude</h3>
             <div class="dock-body">
-              <section id="aux-widget" class="flex flex-col gap-1.5 aux-compact">
-                <div class="aux-grid grid grid-cols-1 gap-x-3 gap-y-1.5 items-start">
-                  <!-- Light brightness (short slider) -->
-                  <div class="aux-cell">
-                    <div class="flex items-center justify-between mb-1">
-                      <label for="light-brightness" class="text-xs text-gray-400">Light</label>
-                      <span class="pill">BRT <span id="light-brightness-value" class="ml-1 font-semibold num">35%</span></span>
-                    </div>
-                    <input id="light-brightness" type="range" min="0" max="100" step="1" value="35" class="w-full max-w-[160px]" title="Light brightness">
-                  </div>
-                  <!-- Gain (short slider) -->
-                  <div class="aux-cell">
-                    <div class="flex items-center justify-between mb-1">
-                      <label for="rov-gain" class="text-xs text-gray-400">Gain</label>
-                      <span class="pill">Gain <span id="rov-gain-value" class="ml-1 font-semibold num">50%</span></span>
-                    </div>
-                    <input id="rov-gain" type="range" min="0" max="100" step="1" value="50" class="w-full max-w-[160px]" title="ROV gain">
-                  </div>
-                  <!-- Camera Tilt (short slider) -->
-                  <div class="aux-cell">
-                    <div class="flex items-center justify-between mb-1">
-                      <label for="cam-tilt" class="text-xs text-gray-400">Camera Tilt</label>
-                      <span class="pill">Tilt <span id="cam-tilt-value" class="ml-1 font-semibold num">0°</span></span>
-                    </div>
-                    <input id="cam-tilt" type="range" min="-90" max="90" step="1" value="0" class="w-full max-w-[160px]" title="Camera tilt">
-                  </div>
-                  <!-- Manipulator state (full width) -->
-                  <div class="aux-cell">
-                    <div class="flex items-center justify-between mb-1">
-                      <span class="text-xs text-gray-400">Manipulator</span>
-                      <span id="manip-state" class="pill text-slate-200">State: <span id="manip-state-text" class="font-semibold text-slate-200">STOPPED</span></span>
-                    </div>
-                    <div class="flex gap-2 flex-wrap">
-                      <button id="manip-open"  type="button" class="seg-btn" aria-pressed="false">Open</button>
-                      <button id="manip-close" type="button" class="seg-btn" aria-pressed="false">Close</button>
-                      <button id="manip-stop"  type="button" class="seg-btn" aria-pressed="true">Stop</button>
-                    </div>
-                  </div>
+              <section id="attitude-widget" class="flex flex-col gap-2">
+                <div id="attitude-viewport" class="w-full h-48 bg-[#0b1220] border border-gray-700 relative overflow-hidden rounded flex items-center justify-center">
+                  <div id="attitude-loading" class="text-[10px] text-gray-400 tracking-wide">Model not loaded</div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button id="attitude-load-btn" type="button" class="seg-btn px-2 py-1" aria-label="Load 3D ROV model">Load Model</button>
+                  <button id="attitude-reload-btn" type="button" class="seg-btn px-2 py-1 hidden" aria-label="Change 3D ROV model">Change Model</button>
+                  <input id="attitude-file" type="file" accept=".glb,model/gltf-binary" style="display:none" aria-hidden="true">
+                  <label class="flex items-center gap-1 text-[10px] text-gray-400 select-none cursor-pointer" title="Lock heading at 0 (disable yaw)">
+                    <input id="attitude-lock-yaw" type="checkbox" class="accent-sky-500" checked>
+                    <span>Lock Yaw</span>
+                  </label>
+                </div>
+                <div class="grid grid-cols-3 gap-1 text-[10px] text-gray-300">
+                  <div class="flex flex-col items-start"><span class="text-gray-500">YAW</span><span id="att-yaw" class="num font-semibold">000°</span></div>
+                  <div class="flex flex-col items-start"><span class="text-gray-500">PITCH</span><span id="att-pitch" class="num font-semibold">0.0°</span></div>
+                  <div class="flex flex-col items-start"><span class="text-gray-500">ROLL</span><span id="att-roll" class="num font-semibold">0.0°</span></div>
                 </div>
               </section>
             </div>
           </div>
           <!-- Power panel (moved from footer) -->
           <div id="panel-power" data-panel-id="panel-power" class="dock-panel" aria-label="Right-side widget dock - Power">
-            <h3>Battery Status</h3>
+            <h3 class="flex items-center justify-between gap-2">Battery Status
+              <button id="bms-reboot-btn" type="button" class="px-2 py-0.5 text-[10px] font-semibold rounded border border-sky-500/40 bg-sky-600/30 text-sky-300 tracking-wide shadow-sm hover:bg-sky-500/30 focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition w-[78px] flex-shrink-0 text-center" aria-label="Reboot Battery Management System">REBOOT</button>
+            </h3>
             <div class="dock-body">
               <section id="power-widget" class="flex flex-col gap-1.5">
                 <div class="flex items-center justify-between">
@@ -450,15 +579,75 @@
                     <span class="text-xs font-medium text-gray-400">Power</span>
                     <span id="current-value" aria-live="polite" class="text-sm font-semibold num">0W</span>
                   </div>
-                  <div id="current-meter" role="meter" aria-label="Battery power" aria-valuemin="-470.4" aria-valuemax="2184" aria-valuenow="0" aria-valuetext="0 watts" class="relative w-full progress-bar-bg rounded-full h-1 overflow-hidden border border-gray-700">
-                    <div id="current-charge-fill" class="absolute top-0 bottom-0" style="right:50%; width:0%; background:#10b981;"></div>
-                    <div id="current-draw-fill"   class="absolute top-0 bottom-0" style="left:50%;  width:0%; background:#ef4444;"></div>
-                    <div class="absolute top-0 bottom-0 left-1/2 w-0.5 bg-gray-300"></div>
-                    <div class="absolute left-1 text-[9px] text-gray-400 font-medium">Charge</div>
-                    <div class="absolute right-1 text-[9px] text-gray-400 font-medium">Draw</div>
+                  <div id="current-meter" role="meter" aria-label="Battery power" aria-valuemin="-470.4" aria-valuemax="2184" aria-valuenow="0" aria-valuetext="0 watts" class="power-meter relative w-full rounded-md h-3 overflow-hidden border border-gray-700">
+                    <div id="current-charge-fill" class="power-fill power-fill-charge"></div>
+                    <div id="current-draw-fill"   class="power-fill power-fill-draw"></div>
+                    <div class="center-line absolute top-0 bottom-0 left-1/2 w-px"></div>
+                    <div class="tick major" style="left:25%"></div>
+                    <div class="tick" style="left:12.5%"></div>
+                    <div class="tick" style="left:37.5%"></div>
+                    <div class="tick major" style="left:75%"></div>
+                    <div class="tick" style="left:62.5%"></div>
+                    <div class="tick" style="left:87.5%"></div>
+                    <div class="power-end-label charge">CHG</div>
+                    <div class="power-end-label draw">DIS</div>
                   </div>
                 </div>
 
+                </div>
+              </section>
+            </div>
+          </div>
+          <!-- Surface Power panel -->
+          <div id="panel-surface" data-panel-id="panel-surface" class="dock-panel" aria-label="Right-side widget dock - Surface Power">
+            <h3 class="flex items-center justify-between gap-2">Surface Power
+              <button id="surface-power-toggle" type="button" class="px-2 py-0.5 text-[10px] font-semibold rounded border border-emerald-500/40 bg-emerald-600/30 text-emerald-300 tracking-wide shadow-sm hover:bg-emerald-500/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition" aria-pressed="true" aria-label="Toggle surface power supply">ON</button>
+            </h3>
+            <div class="dock-body">
+              <section id="surface-power-widget" class="flex flex-col gap-2">
+                <div class="flex items-center justify-evenly gap-3 flex-nowrap">
+                  <!-- Surface DC Voltage Gauge (matches battery style) -->
+                  <div class="gcol flex flex-col items-center">
+                    <div class="gauge" aria-label="Surface DC output voltage" id="surface-voltage-meter">
+                      <svg viewBox="0 0 120 120" aria-hidden="true">
+                        <circle id="surface-voltage-track" class="track" cx="60" cy="60" r="50"></circle>
+                        <circle id="surface-voltage-arc" class="arc" cx="60" cy="60" r="50" stroke-dasharray="314" stroke-dashoffset="0"></circle>
+                      </svg>
+                      <div class="center">
+                        <div class="big num" id="surface-voltage" aria-live="polite">160.0V</div>
+                        <div class="sub">DC</div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Surface Current Gauge (matches battery style) -->
+                  <div class="gcol flex flex-col items-center">
+                    <div class="gauge" aria-label="Surface current" id="surface-current-meter">
+                      <svg viewBox="0 0 120 120" aria-hidden="true">
+                        <circle id="surface-current-track" class="track" cx="60" cy="60" r="50"></circle>
+                        <circle id="surface-current-arc" class="arc" cx="60" cy="60" r="50" stroke-dasharray="314" stroke-dashoffset="0"></circle>
+                      </svg>
+                      <div class="center">
+                        <div class="big num" id="surface-current" aria-live="polite">12.0A</div>
+                        <div class="sub">AMPS</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-1.5 text-[10px]">
+                  <div class="pill flex flex-col w-full items-start gap-0.5">
+                    <div class="flex w-full items-center justify-between"><span class="text-gray-400">ISO</span><span id="surface-isolation" class="num text-gray-200">>20MΩ</span></div>
+                    <div class="w-full h-1.5 rounded-full bg-gray-700 overflow-hidden relative">
+                      <div id="surface-iso-bar" class="absolute inset-y-0 left-0 bg-emerald-500" style="width:100%"></div>
+                    </div>
+                    <div id="surface-iso-status" class="text-[9px] font-medium text-emerald-300">GOOD</div>
+                  </div>
+                  <div class="pill flex flex-col w-full items-start gap-0.5">
+                    <div class="flex w-full items-center justify-between"><span class="text-gray-400">POWER</span><span id="surface-power" class="num text-gray-200">0W</span></div>
+                    <div class="w-full h-1.5 rounded-full bg-gray-700 overflow-hidden relative">
+                      <div id="surface-power-bar" class="absolute inset-y-0 left-0 bg-indigo-500" style="width:0%"></div>
+                    </div>
+                    <div id="surface-power-status" class="text-[9px] font-medium text-indigo-300">OK</div>
+                  </div>
                 </div>
               </section>
             </div>
@@ -498,10 +687,36 @@
     const batteryStateMessage = document.getElementById('battery-state-message');
     const batteryStateText = document.getElementById('battery-state-text');
     const uptimeValue = document.getElementById('uptime-value');
+  // Mode picker refs (declare early so guard array below can safely reference)
+  const modePill = document.getElementById('mode-pill');
+  const modeMenu = document.getElementById('mode-menu');
+  const modePicker = document.getElementById('mode-picker');
+    const recDot = document.getElementById('rec-dot');
+    let recordingActive = true; // future hook: toggle as needed
+    function setRecording(on){
+      recordingActive = !!on;
+      if(recDot){ recDot.classList.toggle('rec-dot-flash', recordingActive); }
+    }
+    setRecording(true);
+  // Surface power DOM
+  const surfaceVoltageEl = document.getElementById('surface-voltage');
+  const surfaceCurrentEl = document.getElementById('surface-current');
+  const surfaceIsolationEl = document.getElementById('surface-isolation');
+  const surfaceIsoBar = document.getElementById('surface-iso-bar');
+  const surfaceIsoStatus = document.getElementById('surface-iso-status');
+  const surfacePowerEl = document.getElementById('surface-power');
+  const surfacePowerBar = document.getElementById('surface-power-bar');
+  const surfacePowerStatus = document.getElementById('surface-power-status');
+  const surfacePowerToggle = document.getElementById('surface-power-toggle');
+  // BMS Reboot button refs/state
+  const bmsRebootBtn = document.getElementById('bms-reboot-btn');
+  let bmsRebooting = false; // true while reboot in progress
+  let bmsRebootUntil = 0;   // timestamp (performance.now) when reboot completes
+  // BMS reboot variables declared earlier
+
     const depthValue = document.getElementById('depth-value');
     const waterTempValue = document.getElementById('water-temp-value');
     const linkQualityValue = document.getElementById('link-quality-value');
-    const modePill = document.getElementById('mode-pill');
     const compassRibbon = document.getElementById('compass-ribbon');
     const compassTrack = document.getElementById('compass-track');
     const videoEl = document.getElementById('video-el');
@@ -520,26 +735,46 @@
     const crimpSlider = document.getElementById('crimp-force');
     const crimpForceValue = document.getElementById('crimp-force-value');
     // Aux Systems DOM
-    const lightSlider = document.getElementById('light-brightness');
-    const lightValue = document.getElementById('light-brightness-value');
-    const manipStateText = document.getElementById('manip-state-text');
-    const manipStatePill = document.getElementById('manip-state');
-    const manipOpenBtn = document.getElementById('manip-open');
-    const manipCloseBtn = document.getElementById('manip-close');
-    const manipStopBtn = document.getElementById('manip-stop');
-    const camTiltSlider = document.getElementById('cam-tilt');
-    const camTiltValue = document.getElementById('cam-tilt-value');
-    // New Gain controls
-    const rovGainSlider = document.getElementById('rov-gain');
-    const rovGainValue = document.getElementById('rov-gain-value');
+  // Light display (moved to bottom bar)
+  const lightValue = document.getElementById('light-value');
+  const lightRow = document.getElementById('light-row');
+  const lightPopover = document.getElementById('light-popover');
+  const lightPopSlider = document.getElementById('light-pop-slider');
+  const lightPopValue = document.getElementById('light-pop-value');
+  // Manipulator state (read-only display)
+  const manipStateValue = document.getElementById('manip-state-value');
+  const manipRow = document.getElementById('manip-row');
+  const manipPopover = document.getElementById('manip-popover');
+  const manipOpenBtn = document.getElementById('manip-open-btn');
+  const manipCloseBtn = document.getElementById('manip-close-btn');
+  // Tilt display (moved to bottom bar)
+  const tiltValue = document.getElementById('tilt-value');
+  const tiltRow = document.getElementById('tilt-row');
+  const tiltPopover = document.getElementById('tilt-popover');
+  const tiltPopSlider = document.getElementById('tilt-pop-slider');
+  const tiltPopValue = document.getElementById('tilt-pop-value');
+  const tiltArcInd = document.getElementById('tilt-arc-ind');
+  const tiltArcVal = document.getElementById('tilt-arc-val');
+  const tiltIndLine = document.getElementById('tilt-ind-line');
+  const tiltGaugeSvg = document.getElementById('tilt-gauge');
+  const tiltTicksGroup = document.getElementById('tilt-ticks');
+  // Gain display (moved to bottom bar)
+  const gainValue = document.getElementById('gain-value');
+  const headingRow = document.getElementById('heading-row');
+  const depthRow = document.getElementById('depth-row');
+  const headingValue = document.getElementById('heading-value');
+  const gainRow = document.getElementById('gain-row');
+  const gainPopover = document.getElementById('gain-popover');
+  const gainPopSlider = document.getElementById('gain-pop-slider');
+  const gainPopValue = document.getElementById('gain-pop-value');
 
     // App menu DOM
     const appMenuBtn = document.getElementById('app-menu-btn');
     const appMenu    = document.getElementById('app-menu');
     const chkDock    = document.getElementById('chk-dock');
     const chkPanelSt = document.getElementById('chk-panel-stitcher');
-    const chkPanelAx = document.getElementById('chk-panel-aux');
     const chkPanelPw = document.getElementById('chk-panel-power');
+  const chkPanelSurface = document.getElementById('chk-panel-surface');
     const chkCompass = document.getElementById('chk-compass');
     const chkDepth   = document.getElementById('chk-depth');
     const chkInfobar = document.getElementById('chk-infobar');
@@ -554,22 +789,19 @@
       if (chkDock) chkDock.checked = showDock;
 
       const stitchPanel = document.getElementById('panel-stitcher');
-      const auxPanel    = document.getElementById('panel-aux');
       const powerPanel  = document.getElementById('panel-power');
-      const setHidden=(el,key)=>{ if(!el) return; const on = getLS(key,'1')==='1'; el.classList.toggle('hidden', !on); const chkMap={ 'uiShow_panel_stitcher':chkPanelSt, 'uiShow_panel_aux':chkPanelAx, 'uiShow_panel_power':chkPanelPw }; const chk=chkMap[key]; if(chk) chk.checked=on; };
+  const setHidden=(el,key)=>{ if(!el) return; const on = getLS(key,'1')==='1';
+    el.classList.toggle('hidden', !on);
+    el.style.display = on ? '' : 'none';
+    const chkMap={ 'uiShow_panel_stitcher':chkPanelSt, 'uiShow_panel_power':chkPanelPw, 'uiShow_panel_surface':chkPanelSurface }; const chk=chkMap[key]; if(chk) chk.checked=on; updateVideoInfobarOffset(); };
       setHidden(stitchPanel,'uiShow_panel_stitcher');
-      setHidden(auxPanel,'uiShow_panel_aux');
       setHidden(powerPanel,'uiShow_panel_power');
+      setHidden(document.getElementById('panel-surface'),'uiShow_panel_surface');
 
       const compass = document.getElementById('compass-ribbon');
       const depth   = document.getElementById('depth-ribbon');
       const infobar = document.querySelector('.video-infobar');
-      const reticle = document.querySelector('.reticle');
-      const setOnOff=(el,key)=>{ if(!el) return; const on=getLS(key,'1')==='1'; el.classList.toggle('hidden', !on); const map={ 'uiShow_compass':chkCompass, 'uiShow_depth':chkDepth, 'uiShow_infobar':chkInfobar, 'uiShow_reticle':chkReticle }; const chk=map[key]; if(chk) chk.checked=on; };
-      setOnOff(compass,'uiShow_compass');
-      setOnOff(depth,'uiShow_depth');
-      setOnOff(infobar,'uiShow_infobar');
-      setOnOff(reticle,'uiShow_reticle');
+      const reticle = document.query
     }
 
     // Apply visibility immediately from current checkbox states (no LS dependency)
@@ -580,10 +812,10 @@
       }
       // Panels
   // Use only the 'hidden' utility class so inline styles do not later override user intent.
-  const setDisp = (el, on) => { if(!el) return; el.classList.toggle('hidden', !on); };
+  const setDisp = (el, on) => { if(!el) return; el.classList.toggle('hidden', !on); el.style.display = on ? '' : 'none'; updateVideoInfobarOffset(); };
       setDisp(document.getElementById('panel-stitcher'), chkPanelSt ? chkPanelSt.checked : true);
-      setDisp(document.getElementById('panel-aux'),       chkPanelAx ? chkPanelAx.checked : true);
-      setDisp(document.getElementById('panel-power'),     chkPanelPw ? chkPanelPw.checked : true);
+  setDisp(document.getElementById('panel-power'),     chkPanelPw ? chkPanelPw.checked : true);
+  setDisp(document.getElementById('panel-surface'),   chkPanelSurface ? chkPanelSurface.checked : true);
       // HUD
       setDisp(document.getElementById('compass-ribbon'),  chkCompass ? chkCompass.checked : true);
       setDisp(document.getElementById('depth-ribbon'),    chkDepth ? chkDepth.checked : true);
@@ -607,19 +839,54 @@
         if(e.key==='Escape' && appMenu.classList.contains('open')){ appMenu.classList.remove('open'); appMenuBtn.setAttribute('aria-expanded','false'); }
       });
 
-      const wire=(chk,key)=>{ if(!chk) return; chk.addEventListener('change', ()=>{ applyVisibilityFromUI(); setLS(key, chk.checked?'1':'0'); }); };
+      const wire=(chk,key)=>{ if(!chk) return; chk.addEventListener('change', ()=>{
+        // Persist new state first
+        setLS(key, chk.checked ? '1':'0');
+        // Apply immediate UI change
+        applyVisibilityFromUI();
+        // Reconcile with persisted values (defensive in case other code re-applies visibility)
+        applyVisibility();
+        updateVideoInfobarOffset();
+      }); };
       wire(chkDock,'uiShow_dock');
       wire(chkPanelSt,'uiShow_panel_stitcher');
-      wire(chkPanelAx,'uiShow_panel_aux');
-      wire(chkPanelPw,'uiShow_panel_power');
+  wire(chkPanelPw,'uiShow_panel_power');
+  wire(chkPanelSurface,'uiShow_panel_surface');
       wire(chkCompass,'uiShow_compass');
       wire(chkDepth,'uiShow_depth');
       wire(chkInfobar,'uiShow_infobar');
       wire(chkReticle,'uiShow_reticle');
 
       // Apply immediate UI state (checkboxes), then reconcile with persisted values
-      applyVisibilityFromUI();
-      applyVisibility();
+  applyVisibilityFromUI();
+  applyVisibility();
+  updateVideoInfobarOffset();
+
+      // Direct panel toggles to ensure immediate response even if other logic interferes
+      if(chkPanelSt){
+        chkPanelSt.addEventListener('change', ()=>{
+          const p=document.getElementById('panel-stitcher'); if(p){
+            p.classList.toggle('hidden', !chkPanelSt.checked);
+            p.style.display = chkPanelSt.checked ? '' : 'none';
+          }
+        });
+      }
+      if(chkPanelPw){
+        chkPanelPw.addEventListener('change', ()=>{
+          const p=document.getElementById('panel-power'); if(p){
+            p.classList.toggle('hidden', !chkPanelPw.checked);
+            p.style.display = chkPanelPw.checked ? '' : 'none';
+          }
+        });
+      }
+      if(chkPanelSurface){
+        chkPanelSurface.addEventListener('change', ()=>{
+          const p=document.getElementById('panel-surface'); if(p){
+            p.classList.toggle('hidden', !chkPanelSurface.checked);
+            p.style.display = chkPanelSurface.checked ? '' : 'none';
+          }
+        });
+      }
     }
 
     // Always-active Staple Reset button
@@ -646,7 +913,22 @@
     const tempMeter    = document.getElementById('temp-meter');
 
     // Guard nodes
-    const must=[["voltageBar",voltageBar],["voltageValue",voltageValue],["currentChargeFill",currentChargeFill],["currentDrawFill",currentDrawFill],["currentValue",currentValue],["tempBar",tempBar],["tempValue",tempValue],["statusText",statusText],["batteryStateMessage",batteryStateMessage],["batteryStateText",batteryStateText],["uptimeValue",uptimeValue],["depthValue",depthValue],["waterTempValue",waterTempValue],["linkQualityValue",linkQualityValue],["modePill",modePill],["compassRibbon",compassRibbon],["compassTrack",compassTrack],["stitchBar",stitchBar],["stitchInd",stitchInd],["stitchStateText",stitchStateText],["stitchStatePill",stitchStatePill],["stapleCountEl",stapleCountEl],["stapleResetBtn",stapleResetBtn],["crimpSlider",crimpSlider],["crimpForceValue",crimpForceValue],["lightSlider",lightSlider],["lightValue",lightValue],["manipStateText",manipStateText],["manipStatePill",manipStatePill],["manipOpenBtn",manipOpenBtn],["manipCloseBtn",manipCloseBtn],["manipStopBtn",manipStopBtn],["camTiltSlider",camTiltSlider],["camTiltValue",camTiltValue],["rovGainSlider",rovGainSlider],["rovGainValue",rovGainValue]];
+  const must=[["voltageBar",voltageBar],["voltageValue",voltageValue],["currentChargeFill",currentChargeFill],["currentDrawFill",currentDrawFill],["currentValue",currentValue],["tempBar",tempBar],["tempValue",tempValue],["statusText",statusText],["batteryStateMessage",batteryStateMessage],["batteryStateText",batteryStateText],["uptimeValue",uptimeValue],["depthValue",depthValue],["waterTempValue",waterTempValue],["linkQualityValue",linkQualityValue],["modePill",modePill],["compassRibbon",compassRibbon],["compassTrack",compassTrack],["stitchBar",stitchBar],["stitchInd",stitchInd],["stitchStateText",stitchStateText],["stitchStatePill",stitchStatePill],["stapleCountEl",stapleCountEl],["stapleResetBtn",stapleResetBtn],["crimpSlider",crimpSlider],["crimpForceValue",crimpForceValue],["lightValue",lightValue],["manipStateValue",manipStateValue],["tiltValue",tiltValue],["gainValue",gainValue],["lightRow",lightRow],["lightPopover",lightPopover],["lightPopSlider",lightPopSlider],["lightPopValue",lightPopValue],["tiltRow",tiltRow],["tiltPopover",tiltPopover],["tiltPopSlider",tiltPopSlider],["tiltPopValue",tiltPopValue],["gainRow",gainRow],["gainPopover",gainPopover],["gainPopSlider",gainPopSlider],["gainPopValue",gainPopValue],["headingRow",headingRow],["headingValue",headingValue],["depthRow",depthRow],["manipRow",manipRow],["manipPopover",manipPopover],["manipOpenBtn",manipOpenBtn],["manipCloseBtn",manipCloseBtn],["tiltArcInd",tiltArcInd],["tiltArcVal",tiltArcVal],["tiltIndLine",tiltIndLine],["tiltGaugeSvg",tiltGaugeSvg],["surfaceVoltageEl",surfaceVoltageEl],["surfaceCurrentEl",surfaceCurrentEl],["surfaceIsolationEl",surfaceIsolationEl],["surfaceIsoBar",surfaceIsoBar],["surfaceIsoStatus",surfaceIsoStatus],["surfacePowerEl",surfacePowerEl],["surfacePowerBar",surfacePowerBar],["surfacePowerStatus",surfacePowerStatus],["surfacePowerToggle",surfacePowerToggle]];
+
+  // Surface power toggle state
+  let surfacePowerEnabled = true;
+  if(surfacePowerToggle){
+    surfacePowerToggle.addEventListener('click',()=>{
+      surfacePowerEnabled = !surfacePowerEnabled;
+      surfacePowerToggle.textContent = surfacePowerEnabled? 'ON':'OFF';
+      surfacePowerToggle.setAttribute('aria-pressed', surfacePowerEnabled?'true':'false');
+      if(surfacePowerEnabled){
+        surfacePowerToggle.className='px-2 py-0.5 text-[10px] font-semibold rounded border border-emerald-500/40 bg-emerald-600/30 text-emerald-300 tracking-wide shadow-sm hover:bg-emerald-500/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition';
+      }else{
+        surfacePowerToggle.className='px-2 py-0.5 text-[10px] font-semibold rounded border border-gray-500/40 bg-gray-600/30 text-gray-300 tracking-wide shadow-sm hover:bg-gray-500/30 focus:outline-none focus:ring-2 focus:ring-gray-500/50 transition';
+      }
+    });
+  }
     must.forEach(([n,node])=>{ if(!node){ c.error('Missing DOM node for',n);} });
 
     // Ranges / constants
@@ -662,8 +944,45 @@
     // Uptime utils
     const start=Date.now(); const formatUptime=ms=>{ const s=Math.floor(ms/1000); const h=String(Math.floor(s/3600)).padStart(2,'0'); const m=String(Math.floor((s%3600)/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${h}:${m}:${ss}`; };
 
-    // Modes (cosmetic)
-    const modes=['STABILIZE','DEPTH HOLD','AUTO-HEADING','MANUAL']; let modeIdx=0;
+  // Mode selection dropdown (already declared above)
+    const MODES = ['DEPTH HOLD','MANUAL','FREEDOF'];
+    let currentMode = 'DEPTH HOLD';
+    function setMode(m){
+      if(!MODES.includes(m)) return;
+      currentMode = m;
+      if(modePill) modePill.textContent = m + ' ▾';
+      if(modeMenu){
+        [...modeMenu.querySelectorAll('.mode-opt')].forEach(btn=>{
+          btn.setAttribute('aria-selected', btn.getAttribute('data-mode')===m ? 'true' : 'false');
+        });
+      }
+    }
+    function toggleModeMenu(open){
+      if(!modeMenu || !modePill) return;
+      const show = (open===undefined)? modeMenu.classList.contains('hidden') : open;
+      modeMenu.classList.toggle('hidden', !show);
+      modePill.setAttribute('aria-expanded', show?'true':'false');
+      if(show){
+        const sel = modeMenu.querySelector('.mode-opt[aria-selected="true"]') || modeMenu.querySelector('.mode-opt');
+        sel && setTimeout(()=>sel.focus(),0);
+      }
+    }
+    if(modePill){
+      modePill.addEventListener('click', ()=> toggleModeMenu());
+      modePill.addEventListener('keydown', e=>{ if(['ArrowDown','Enter',' '].includes(e.key)){ e.preventDefault(); toggleModeMenu(true);} });
+    }
+    if(modeMenu){
+      modeMenu.addEventListener('click', e=>{ const b=e.target.closest('.mode-opt'); if(!b) return; setMode(b.getAttribute('data-mode')); toggleModeMenu(false); modePill&&modePill.focus(); });
+      modeMenu.addEventListener('keydown', e=>{
+        const opts=[...modeMenu.querySelectorAll('.mode-opt')]; const idx=opts.indexOf(document.activeElement);
+        if(e.key==='Escape'){ toggleModeMenu(false); modePill&&modePill.focus(); }
+        else if(e.key==='ArrowDown'){ e.preventDefault(); opts[(idx+1)%opts.length].focus(); }
+        else if(e.key==='ArrowUp'){ e.preventDefault(); opts[(idx-1+opts.length)%opts.length].focus(); }
+        else if(e.key==='Enter' || e.key===' '){ e.preventDefault(); const act=document.activeElement; if(act&&act.classList.contains('mode-opt')){ setMode(act.getAttribute('data-mode')); toggleModeMenu(false); modePill&&modePill.focus(); } }
+      });
+    }
+    document.addEventListener('click', e=>{ if(modeMenu && !modeMenu.classList.contains('hidden')){ if(!modePicker.contains(e.target)) toggleModeMenu(false); } });
+    setMode(currentMode);
 
     // Compass build
     // --- Depth ribbon (vertical, scrolling) ---
@@ -754,6 +1073,55 @@
       // Numeric labels fade toward edges
       const labels=compassTrack.querySelectorAll('.compass-label');
       labels.forEach(el=>{ const type=el.dataset.type||''; const d=Number(el.dataset.deg); if(!Number.isFinite(d)) return; const diff=Math.abs((((d-h)+540)%360)-180); let op=1; if(type==='numeric'){ op=Math.max(0, 1-(diff/60)); } el.style.opacity=op.toFixed(2); });
+  if(headingValue){ headingValue.textContent = ("000"+Math.round(((h%360)+360)%360)).slice(-3)+"°"; }
+  const hb=document.getElementById('heading-box-value'); if(hb){ hb.textContent=("000"+Math.round(((h%360)+360)%360)).slice(-3)+"°"; }
+    }
+    // Adjust video layout when dock hidden so infobar doesn't overlap critical content
+    function updateVideoInfobarOffset(){
+      const dock = document.getElementById('right-dock');
+      const canvas = document.querySelector('.video-canvas');
+      const infobar = document.querySelector('.video-infobar');
+      if(!canvas || !infobar){ return; }
+      // Determine dock visibility: dock element present & at least one non-hidden panel visible
+      let dockVisible = false;
+      if(dock && dock.offsetParent !== null){
+        const anyVisible = dock.querySelector('.dock-panel:not(.hidden)');
+        dockVisible = !!anyVisible;
+      }
+      if(!dockVisible){
+        const h = Math.ceil(infobar.getBoundingClientRect().height + 10); // add gap
+        canvas.style.setProperty('--infobar-h', h+"px");
+        if(!canvas.classList.contains('no-dock')) canvas.classList.add('no-dock');
+      } else {
+        canvas.classList.remove('no-dock');
+        canvas.style.removeProperty('--infobar-h');
+      }
+    }
+    window.addEventListener('resize', ()=>{ updateVideoInfobarOffset(); });
+    // Heading row toggles compass ribbon visibility
+    if(headingRow){
+      const syncHeadingToggleState=()=>{
+        const visible = !compassRibbon.classList.contains('hidden');
+        headingRow.setAttribute('aria-pressed', visible.toString());
+        headingRow.setAttribute('aria-expanded', visible.toString());
+      };
+      headingRow.addEventListener('click', ()=>{
+        const willHide = !compassRibbon.classList.contains('hidden');
+        compassRibbon.classList.toggle('hidden', willHide);
+        syncHeadingToggleState();
+      });
+      headingRow.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); headingRow.click(); }});
+      syncHeadingToggleState();
+    }
+    // Depth row toggles depth ribbon visibility
+    if(depthRow){
+      depthRow.addEventListener('click', ()=>{
+        const willHide = !depthRibbon.classList.contains('hidden');
+        depthRibbon.classList.toggle('hidden', willHide);
+        depthRow.setAttribute('aria-pressed', (!willHide).toString());
+      });
+      depthRow.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); depthRow.click(); }});
+      depthRow.setAttribute('aria-pressed', (!depthRibbon.classList.contains('hidden')).toString());
     }
 
     // Power UI helper (Watts with bidirectional bar)
@@ -820,8 +1188,8 @@
       // Aux
       lightPct: 35,
       manipState: 'STOPPED', // 'OPEN' | 'CLOSE' | 'STOPPED'
-      camTilt: 0, camTiltTarget: 0, // degrees
-      gainPct: 50, // new gain value
+  camTilt: 0, camTiltTarget: 0, // degrees (display only now)
+  gainPct: 50, // gain percentage (display only)
       // Stitcher FSM
       stitchCounts: 0,
       stitchMode: 'READY',
@@ -841,50 +1209,175 @@
       });
     }
 
-    // Controls: light brightness
-    if (lightSlider) {
-      lightSlider.addEventListener('input', (e)=>{
-        const v = Math.max(0, Math.min(100, parseInt(e.target.value,10)||0));
-        sim.lightPct = v; // direct set
-        if (lightValue) lightValue.textContent = `${v}%`;
-      });
+    // Light popover logic
+    function setLightPct(v){
+      sim.lightPct = Math.max(0, Math.min(100, v|0));
+      if (lightValue) lightValue.textContent = sim.lightPct+"%";
+      if (lightPopValue) lightPopValue.textContent = sim.lightPct+"%";
+      if (lightPopSlider && Number(lightPopSlider.value)!==sim.lightPct) lightPopSlider.value = String(sim.lightPct);
     }
+    function toggleLightPopover(show){
+      if(!lightPopover || !lightRow) return;
+      const wantShow = (show === undefined) ? lightPopover.classList.contains('hidden') : !!show;
+      lightPopover.classList.toggle('hidden', !wantShow);
+      lightRow.setAttribute('aria-expanded', wantShow ? 'true' : 'false');
+      if(wantShow && lightPopSlider){
+        requestAnimationFrame(()=>{ try{ lightPopSlider.focus({preventScroll:true}); }catch(_){ } });
+      }
+    }
+    if(lightRow){
+      lightRow.addEventListener('click', ()=> toggleLightPopover());
+      lightRow.addEventListener('keydown', (e)=>{ if(e.key==='Enter'|| e.key===' '){ e.preventDefault(); toggleLightPopover(); }});
+    }
+    if(lightPopSlider){
+      lightPopSlider.addEventListener('input', e=>{ const v=parseInt(e.target.value,10); if(!isNaN(v)) setLightPct(v); });
+    }
+    document.addEventListener('click', (e)=>{
+      if(!lightPopover || lightPopover.classList.contains('hidden')) return;
+      if(lightPopover.contains(e.target) || (lightRow && lightRow.contains(e.target))) return;
+      toggleLightPopover(false);
+    });
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape') toggleLightPopover(false); });
+    setLightPct(sim.lightPct);
+
+    // Gain popover logic
+    function setGainPct(v){
+      sim.gainPct = Math.max(0, Math.min(100, v|0));
+      if(gainValue) gainValue.textContent = sim.gainPct+"%";
+      if(gainPopValue) gainPopValue.textContent = sim.gainPct+"%";
+      if(gainPopSlider && Number(gainPopSlider.value)!==sim.gainPct) gainPopSlider.value = String(sim.gainPct);
+    }
+    function toggleGainPopover(show){
+      if(!gainPopover || !gainRow) return; const wantShow = (show===undefined)? gainPopover.classList.contains('hidden'): !!show;
+      gainPopover.classList.toggle('hidden', !wantShow);
+      gainRow.setAttribute('aria-expanded', wantShow? 'true':'false');
+      if(wantShow && gainPopSlider){ requestAnimationFrame(()=>{ try{ gainPopSlider.focus({preventScroll:true}); }catch(_){ } }); }
+    }
+    if(gainRow){
+      gainRow.addEventListener('click', ()=> toggleGainPopover());
+      gainRow.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleGainPopover(); }});
+    }
+    if(gainPopSlider){ gainPopSlider.addEventListener('input', e=>{ const v=parseInt(e.target.value,10); if(!isNaN(v)) setGainPct(v); }); }
+    document.addEventListener('click', e=>{ if(!gainPopover || gainPopover.classList.contains('hidden')) return; if(gainPopover.contains(e.target) || (gainRow && gainRow.contains(e.target))) return; toggleGainPopover(false); });
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape') toggleGainPopover(false); });
+    setGainPct(sim.gainPct || 50);
 
     // Controls: manipulator state
     function setManipState(s){
       sim.manipState = s;
-      if (!manipStateText || !manipStatePill) return;
-      manipStateText.textContent = s;
-      let pillCls = 'pill ';
-      if (s==='OPEN') pillCls += 'border-sky-500/40 text-sky-300 bg-sky-500/10';
-      else if (s==='CLOSE') pillCls += 'border-amber-500/40 text-amber-300 bg-amber-500/10';
-      else pillCls += 'border-slate-500/40 text-slate-300 bg-slate-500/10';
-      manipStatePill.className = pillCls;
-      if (manipOpenBtn)  manipOpenBtn.setAttribute('aria-pressed', String(s==='OPEN'));
-      if (manipCloseBtn) manipCloseBtn.setAttribute('aria-pressed', String(s==='CLOSE'));
-      if (manipStopBtn)  manipStopBtn.setAttribute('aria-pressed', String(s==='STOPPED'));
+      if (manipStateValue) manipStateValue.textContent = s;
     }
-    manipOpenBtn && manipOpenBtn.addEventListener('click', ()=>setManipState('OPEN'));
-    manipCloseBtn && manipCloseBtn.addEventListener('click', ()=>setManipState('CLOSE'));
-    manipStopBtn && manipStopBtn.addEventListener('click', ()=>setManipState('STOPPED'));
+    // Manip popover / momentary buttons
+    function toggleManipPopover(show){ if(!manipPopover||!manipRow) return; const wantShow=(show===undefined)?manipPopover.classList.contains('hidden'):!!show; manipPopover.classList.toggle('hidden', !wantShow); manipRow.setAttribute('aria-expanded', wantShow? 'true':'false'); if(wantShow && manipOpenBtn){ requestAnimationFrame(()=>{ try{ manipOpenBtn.focus({preventScroll:true}); }catch(_){ } }); } }
+    if(manipRow){
+      manipRow.addEventListener('click', ()=> toggleManipPopover());
+      manipRow.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleManipPopover(); }});
+    }
+    function manipHold(btn, state){ if(!btn) return; let active=false; const start=()=>{ active=true; setManipState(state); }; const end=()=>{ if(!active) return; active=false; setManipState('STOPPED'); }; btn.addEventListener('mousedown', start); btn.addEventListener('touchstart', (e)=>{ e.preventDefault(); start(); }, {passive:false}); ['mouseup','mouseleave','touchend','touchcancel','blur'].forEach(ev=> btn.addEventListener(ev, end)); }
+    manipHold(manipOpenBtn,'OPEN');
+    manipHold(manipCloseBtn,'CLOSE');
+    document.addEventListener('click', e=>{ if(!manipPopover || manipPopover.classList.contains('hidden')) return; if(manipPopover.contains(e.target) || (manipRow && manipRow.contains(e.target))) return; toggleManipPopover(false); });
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape') toggleManipPopover(false); });
 
-    // Controls: camera tilt
-    if (camTiltSlider) {
-      camTiltSlider.addEventListener('input', (e)=>{
-        const v = Math.max(-90, Math.min(90, parseInt(e.target.value,10)||0));
-        sim.camTiltTarget = v;
-        if (camTiltValue) camTiltValue.textContent = `${v}\u00B0`;
-      });
+  // Camera tilt now static (no slider); adjust sim.camTiltTarget programmatically if needed.
+    // Tilt popover logic
+    function setTiltDeg(v){
+      const clamped = Math.max(-90, Math.min(90, v|0));
+      sim.camTiltTarget = clamped;
+      if(tiltPopSlider && Number(tiltPopSlider.value)!==clamped) tiltPopSlider.value=String(clamped);
+      if(tiltPopValue) tiltPopValue.textContent = clamped+"°";
+      // Update gauge immediately
+      updateTiltGauge(clamped);
     }
+    // Build tick marks once
+    (function buildTiltTicks(){
+      if(!tiltTicksGroup) return; if(tiltTicksGroup.childElementCount) return;
+      const cx=100, cy=100, R=90;
+      for(let d=-90; d<=90; d+=15){
+        const frac=(d+90)/180; const angle= (270 - frac*180) * Math.PI/180; // bottom -90 (270deg) to top +90 (90deg)
+        const x1=cx + (R-8)*Math.cos(angle); const y1=cy + (R-8)*Math.sin(angle);
+        const x2=cx + (R-2)*Math.cos(angle); const y2=cy + (R-2)*Math.sin(angle);
+        const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.setAttribute('x1',x1.toFixed(1)); line.setAttribute('y1',y1.toFixed(1));
+        line.setAttribute('x2',x2.toFixed(1)); line.setAttribute('y2',y2.toFixed(1));
+        line.setAttribute('stroke', d%30===0? '#e5e7eb':'#9ca3af');
+        line.setAttribute('stroke-width', d%30===0? '2':'1');
+        line.setAttribute('opacity', d===0? '1':'0.85');
+        tiltTicksGroup.appendChild(line);
+        if(d%30===0){
+          const lx=cx + (R-18)*Math.cos(angle); const ly=cy + (R-18)*Math.sin(angle)+4;
+            const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+            lbl.textContent = d===0? '0°' : d+'°';
+            lbl.setAttribute('x', lx.toFixed(1)); lbl.setAttribute('y', ly.toFixed(1));
+            lbl.setAttribute('fill','#cbd5e1');
+            lbl.setAttribute('font-size','10');
+            lbl.setAttribute('text-anchor','middle');
+            lbl.setAttribute('font-weight', d===0?'700':'500');
+            tiltTicksGroup.appendChild(lbl);
+        }
+      }
+    })();
+    function updateTiltGauge(val){
+      if(!tiltArcInd) return; const cx=100, cy=100, R=90; // center
+      const clampV = Math.max(-90, Math.min(90, val));
+      const frac=(clampV+90)/180; // 0 bottom -> 1 top
+      const angleDeg = 270 - frac*180; // 270 (bottom) -> 90 (top)
+      const rad = angleDeg * Math.PI/180;
+      const x = cx + R*Math.cos(rad);
+      const y = cy + R*Math.sin(rad);
+      tiltArcInd.setAttribute('cx', x.toFixed(2));
+      tiltArcInd.setAttribute('cy', y.toFixed(2));
+      if(tiltIndLine){
+        const lx = cx + (R+20)*Math.cos(rad);
+        const ly = cy + (R+20)*Math.sin(rad);
+        tiltIndLine.setAttribute('x1', x.toFixed(2)); tiltIndLine.setAttribute('y1', y.toFixed(2));
+        tiltIndLine.setAttribute('x2', lx.toFixed(2)); tiltIndLine.setAttribute('y2', ly.toFixed(2));
+      }
+      if(tiltArcVal){ const length=Math.PI*R; const used=length*frac; tiltArcVal.setAttribute('stroke-dasharray', used.toFixed(1)+" "+(length*2).toFixed(1)); }
+    }
+    // Drag / click interaction on arc
+    (function enableTiltArcDrag(){
+      if(!tiltGaugeSvg) return;
+      const cx=100, cy=100, R=90;
+      function ptToTilt(clientX, clientY){
+        const rect=tiltGaugeSvg.getBoundingClientRect();
+        const x = clientX - rect.left - cx;
+        const y = clientY - rect.top - cy;
+        let ang = Math.atan2(y,x) * 180/Math.PI; // -180..180
+        // constrain to right hemisphere (angles between -90 and 90 relative to center vertical axis)
+        if(ang < -90) ang = -90; if(ang > 90) ang = 90;
+        // Convert: bottom (-90) should map to -90, top (+90) to +90 (y negative is up)
+        const tilt = -ang; // invert so up positive
+        return Math.max(-90, Math.min(90, tilt));
+      }
+      let dragging=false;
+      function start(e){ dragging=true; move(e); e.preventDefault(); }
+      function move(e){ if(!dragging) return; const t = e.touches? e.touches[0]: e; const tilt=ptToTilt(t.clientX,t.clientY); setTiltDeg(tilt); }
+      function end(){ dragging=false; }
+      tiltGaugeSvg.addEventListener('mousedown', start);
+      tiltGaugeSvg.addEventListener('touchstart', start, {passive:false});
+      window.addEventListener('mousemove', move);
+      window.addEventListener('touchmove', move, {passive:false});
+      window.addEventListener('mouseup', end);
+      window.addEventListener('touchend', end);
+      tiltGaugeSvg.addEventListener('wheel', e=>{ e.preventDefault(); const delta= e.deltaY>0? -2: 2; setTiltDeg(sim.camTiltTarget + delta); }, {passive:false});
+    })();
+    function toggleTiltPopover(show){
+      if(!tiltPopover || !tiltRow) return; const wantShow = (show===undefined)? tiltPopover.classList.contains('hidden') : !!show;
+      tiltPopover.classList.toggle('hidden', !wantShow);
+      tiltRow.setAttribute('aria-expanded', wantShow? 'true':'false');
+      if(wantShow && tiltPopSlider){ requestAnimationFrame(()=>{ try{ tiltPopSlider.focus({preventScroll:true}); }catch(_){ } }); }
+    }
+    if(tiltRow){
+      tiltRow.addEventListener('click', ()=> toggleTiltPopover());
+      tiltRow.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleTiltPopover(); }});
+    }
+    if(tiltPopSlider){ tiltPopSlider.addEventListener('input', e=>{ const v=parseInt(e.target.value,10); if(!isNaN(v)) setTiltDeg(v); }); }
+    document.addEventListener('click', e=>{ if(!tiltPopover || tiltPopover.classList.contains('hidden')) return; if(tiltPopover.contains(e.target) || (tiltRow && tiltRow.contains(e.target))) return; toggleTiltPopover(false); });
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape') toggleTiltPopover(false); });
+    setTiltDeg(sim.camTiltTarget || 0);
 
-    // Controls: Gain slider
-    if (rovGainSlider) {
-      rovGainSlider.addEventListener('input', (e)=>{
-        const v = Math.max(0, Math.min(100, parseInt(e.target.value,10)||0));
-        sim.gainPct = v;
-        if (rovGainValue) rovGainValue.textContent = `${v}%`;
-      });
-    }
+  // Gain now static (no slider). If desired, adjust programmatically elsewhere.
 
     // Helper maps
     const lerpExp=(cur,target,dt,tau)=> cur + (target-cur)*(1-Math.exp(-dt/Math.max(0.001,tau)));
@@ -904,7 +1397,6 @@
       const clamped = Math.max(0, Math.min(100, pct));
       const filled = ARC_LEN * (clamped / 100);
       const remainingArc = ARC_LEN - filled;
-      // Draw the filled part, then the remaining part of the 240° arc, then the fixed 120° gap
       el.style.strokeDasharray = `${filled} ${remainingArc + GAP_LEN}`;
       el.style.strokeDashoffset = String(ARC_BASE_OFFSET);
     }
@@ -920,6 +1412,8 @@
     // Initialize tracks for 2/3 arcs
     initGaugeTrack('voltage-track');
     initGaugeTrack('temp-track');
+  initGaugeTrack('surface-voltage-track');
+  initGaugeTrack('surface-current-track');
 
     // Display smoothing state for infobar
     let displayDepth = 12.5;
@@ -983,17 +1477,27 @@
     }
 
     function applyStatus(vPct){
+      if(bmsRebooting){
+        // Override battery pill while rebooting
+        if (batteryStateMessage){
+          batteryStateMessage.className = 'pill border-sky-500/40 text-sky-300 bg-sky-500/10';
+        }
+        if (batteryStateText){
+          batteryStateText.className = 'font-semibold text-sky-300';
+          batteryStateText.textContent = 'REBOOT';
+        }
+        return; // skip normal logic during reboot
+      }
       const t = sim.temp;
       const isFault = (t >= MAX_TEMP) || (vPct <= 25);
       const isWarn  = !isFault && ((t >= NORMAL_TEMP_LIMIT) || (vPct <= 40));
-
-      // Top status badge (kept consistent with previous visuals)
-      let html = `<span class=\"status-indicator-dot bg-green-400 pulse-anim\"></span> ARMED`;
-      let textCls = 'text-green-400';
-      if (t >= MAX_TEMP) { html = `<span class=\"status-indicator-dot bg-red-500\"></span> TEMP CUT-OFF`; textCls = 'text-red-400'; }
-      else if (isWarn || isFault) { html = `<span class=\"status-indicator-dot bg-yellow-400 pulse-anim\"></span> WARNING`; textCls = 'text-yellow-300'; }
-      statusText.innerHTML = html;
-      statusText.className = `rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs flex items-center gap-2 ${textCls}`;
+  // Simplified top status: only ARMED (normal) or DISARMED (any warn/fault)
+  const disarmed = isWarn || isFault;
+  const dotCls = disarmed ? 'bg-red-500' : 'bg-green-400';
+  const label  = disarmed ? 'DISARMED' : 'ARMED';
+  const textCls = disarmed ? 'text-red-400' : 'text-green-400';
+  statusText.innerHTML = `<span class=\"status-indicator-dot ${dotCls}\"></span> ${label}`;
+  statusText.className = `rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs flex items-center gap-2 ${textCls}`;
 
       // Battery pill matches Net Repair style
       if (batteryStateMessage) {
@@ -1026,12 +1530,18 @@
     }
 
     function renderAux(){
-      // Light
-      if (lightValue && typeof sim.lightPct==='number') lightValue.textContent = `${Math.round(sim.lightPct)}%`;
-      // Camera tilt (smoothed -> display)
-      if (camTiltValue) camTiltValue.textContent = `${Math.round(sim.camTilt)}\u00B0`;
-      // Gain value
-      if (rovGainValue) rovGainValue.textContent = `${Math.round(sim.gainPct)}%`;
+  // Light
+  if (lightValue && typeof sim.lightPct==='number') lightValue.textContent = `${Math.round(sim.lightPct)}%`;
+  if (lightPopValue) lightPopValue.textContent = `${Math.round(sim.lightPct)}%`;
+  // Manipulator state
+  if (manipStateValue) manipStateValue.textContent = sim.manipState;
+  // Camera tilt (bottom bar)
+  if (tiltValue) tiltValue.textContent = `${Math.round(sim.camTilt)}\u00B0`;
+  if (tiltPopValue) tiltPopValue.textContent = `${Math.round(sim.camTiltTarget)}\u00B0`;
+  updateTiltGauge(sim.camTiltTarget);
+  // Gain value (bottom bar)
+  if (gainValue) gainValue.textContent = `${Math.round(sim.gainPct)}%`;
+  if (gainPopValue) gainPopValue.textContent = `${Math.round(sim.gainPct)}%`;
     }
 
     function tick(dt){
@@ -1039,7 +1549,7 @@
       // Heading dynamics
       sim.yawRate = lerpExp(sim.yawRate, sim.targetYawRate, dt, 0.6);
       sim.heading = wrap360(sim.heading + sim.yawRate*dt);
-      setCompassHeading(sim.heading);
+  setCompassHeading(sim.heading);
 
       // Current smoothing
       sim.amps = lerpExp(sim.amps, sim.targetAmps, dt, 0.35);
@@ -1055,6 +1565,89 @@
       voltageValue.textContent = `${sim.voltage.toFixed(2)}V`;
       const vCol = vPct>50? '#22c55e' : (vPct>25? '#eab308' : '#ef4444');
       const vArc = document.getElementById('voltage-arc'); if(vArc) vArc.style.stroke = vCol;
+
+  // Surface power simulation: active = simulate; inactive = ramp to 0 (voltage/current/power), keep isolation reading steady
+  if(surfaceVoltageEl){
+        sim.surfaceV = sim.surfaceV || 160;
+        if(surfacePowerEnabled){
+          sim.surfaceV += Math.sin(now/6000)*0.02 + (Math.random()-0.5)*0.05;
+          sim.surfaceV = Math.min(165, Math.max(150, sim.surfaceV));
+        } else {
+          // ramp toward 0
+          sim.surfaceV = lerpExp(sim.surfaceV, 0, dt, 1.5);
+          if(sim.surfaceV < 0.2) sim.surfaceV = 0; // snap
+        }
+        const vPctSurf = surfacePowerEnabled ? ((sim.surfaceV-150)/(165-150))*100 : (sim.surfaceV<=0?0: (sim.surfaceV/165)*100);
+        setGaugeArc('surface-voltage-arc', Math.max(0, Math.min(100, vPctSurf)) );
+        surfaceVoltageEl.textContent = `${sim.surfaceV.toFixed(1)}V`;
+        const sArc = document.getElementById('surface-voltage-arc'); if(sArc){
+          if(!surfacePowerEnabled){
+            sArc.style.stroke = '#64748b';
+          }else{
+            sArc.style.stroke = (sim.surfaceV<154 || sim.surfaceV>162)? '#eab308' : '#22c55e';
+            if(sim.surfaceV<152 || sim.surfaceV>163.5) sArc.style.stroke = '#ef4444';
+          }
+        }
+      }
+  if(surfaceCurrentEl){
+        sim.surfaceA = sim.surfaceA || 10;
+        if(surfacePowerEnabled){
+          sim.surfaceA += (Math.random()-0.5)*0.2; // jitter
+          sim.surfaceA = Math.min(40, Math.max(0, sim.surfaceA));
+        } else {
+          sim.surfaceA = lerpExp(sim.surfaceA, 0, dt, 2.5);
+          if(sim.surfaceA < 0.05) sim.surfaceA = 0;
+        }
+        const aPct = (sim.surfaceA/40)*100;
+        setGaugeArc('surface-current-arc', aPct);
+        surfaceCurrentEl.textContent = `${sim.surfaceA.toFixed(1)}A`;
+        const cArc = document.getElementById('surface-current-arc'); if(cArc){ cArc.style.stroke = surfacePowerEnabled? (aPct<70? '#22c55e' : (aPct<85? '#eab308':'#ef4444')) : '#64748b'; }
+      }
+  if(surfaceIsolationEl){
+        // iso in megaohms; new operating range 0.01..2.5 MΩ
+        sim.surfaceIso = sim.surfaceIso || 2.2; // start near good
+        if(surfacePowerEnabled){
+          // small random walk with occasional dip events
+          sim.surfaceIso += (Math.random()-0.5)*0.03; 
+          if(Math.random()<0.002){ sim.surfaceIso -= Math.random()*0.6; }
+        }
+        sim.surfaceIso = Math.min(2.5, Math.max(0.01, sim.surfaceIso));
+        const iso = sim.surfaceIso;
+        // Format: use MΩ above 1, else kΩ below 1
+        let isoText;
+        if(iso < 0.03){ isoText = '<30kΩ'; }
+        else if(iso < 1){ isoText = (iso*1000).toFixed(0)+'kΩ'; }
+        else isoText = iso.toFixed(2)+'MΩ';
+        surfaceIsolationEl.textContent = isoText;
+        // Bar: scale 0..2 MΩ => 0..100%
+        if(surfaceIsoBar){ const pct = Math.min(1, iso/2)*100; surfaceIsoBar.style.width = pct.toFixed(1)+'%'; }
+        // Status thresholds:
+        // GOOD >=0.5 MΩ (>=500kΩ)
+        // LOW RES (bad) 0.03..0.5 MΩ (30kΩ..500kΩ)
+        // FAULT <30kΩ (<0.03 MΩ)
+        let state, clsText, barCls;
+        if(iso < 0.03){ state='FAULT'; clsText='text-red-300'; barCls='bg-red-500'; }
+        else if(iso < 0.5){ state='LOW RES'; clsText='text-amber-300'; barCls='bg-amber-500'; }
+        else { state='GOOD'; clsText='text-emerald-300'; barCls='bg-emerald-500'; }
+        if(surfaceIsoStatus){ surfaceIsoStatus.textContent=state; surfaceIsoStatus.className='text-[9px] font-medium '+clsText; }
+        if(surfaceIsoBar){ surfaceIsoBar.className='absolute inset-y-0 left-0 rounded-full '+barCls; }
+      }
+
+        // Surface power (watts) derived metric
+  if(surfacePowerEl && sim.surfaceV!=null && sim.surfaceA!=null){
+          const watts = sim.surfaceV * sim.surfaceA; // instantaneous DC power
+          surfacePowerEl.textContent = watts.toFixed(0)+' W';
+          const MAX_WATTS = 160*40; // 6400W design envelope
+          const wPct = Math.min(watts / MAX_WATTS, 1);
+          if(surfacePowerBar){ surfacePowerBar.style.width = (wPct*100).toFixed(1)+'%'; }
+          let pStatus='OK', pClass='bg-emerald-500', pStatusClass='bg-emerald-600/20 text-emerald-400';
+          if(wPct>0.9){ pStatus='OVER'; pClass='bg-red-500'; pStatusClass='bg-red-600/20 text-red-400'; }
+          else if(wPct>0.75){ pStatus='HIGH'; pClass='bg-amber-500'; pStatusClass='bg-amber-600/20 text-amber-400'; }
+          else if(wPct<0.05){ pStatus='IDLE'; pClass='bg-slate-500'; pStatusClass='bg-slate-600/20 text-slate-400'; }
+          if(!surfacePowerEnabled){ pStatus='OFF'; pClass='bg-slate-600'; pStatusClass='bg-slate-600/30 text-slate-400'; }
+          if(surfacePowerBar){ surfacePowerBar.className='h-2 rounded transition-all duration-300 '+pClass; }
+          if(surfacePowerStatus){ surfacePowerStatus.textContent=pStatus; surfacePowerStatus.className='px-2 py-0.5 rounded text-xs font-medium '+pStatusClass; }
+        }
 
       const tPct = Math.min(100, Math.max(0, (sim.temp / 100) * 100));
       setGaugeArc('temp-arc', tPct);
@@ -1093,8 +1686,18 @@
 
       // Status + Uptime + Modes
       applyStatus(vPct);
+      // Reboot lifecycle completion
+      if(bmsRebooting && performance.now() >= bmsRebootUntil){
+        bmsRebooting = false;
+        if(bmsRebootBtn){
+          bmsRebootBtn.disabled = false;
+          bmsRebootBtn.textContent = 'REBOOT';
+          bmsRebootBtn.classList.remove('opacity-60','cursor-not-allowed');
+        }
+        applyStatus(vPct); // refresh pill with real status
+      }
       uptimeValue.textContent = formatUptime(Date.now()-start);
-      if (Math.floor(Date.now()/20000)%2===0){ modeIdx=(modeIdx+1)%modes.length; modePill.textContent=modes[modeIdx]; }
+  // Mode no longer auto-cycles; selection persists via dropdown.
     }
 
     function animate(now){
@@ -1203,6 +1806,424 @@
       if (videoLoadBtn) { videoLoadBtn.addEventListener('click', ()=>{ videoFile && videoFile.click(); }); }
       if (videoFile) { videoFile.addEventListener('change', (e)=>{ const f = e.target.files && e.target.files[0]; loadSelected(f); }); }
     }
+
+    // --- 3D ROV Attitude Widget ---
+  (function initAttitude3D(){
+      const vp = document.getElementById('attitude-viewport');
+      if(!vp) return; // widget not present
+      // Dynamically inject Three.js if not already loaded
+      function loadScript(src){ return new Promise(res=>{ const s=document.createElement('script'); s.src=src; s.onload=res; document.head.appendChild(s); }); }
+      const yawEl = document.getElementById('att-yaw');
+      const pitchEl = document.getElementById('att-pitch');
+      const rollEl = document.getElementById('att-roll');
+  let threeReady=false, scene, camera, renderer, rovObj, horizonGroup, lastT=performance.now();
+  // Legacy simple pitch/roll sim vars (retained but superseded by 6DOF)
+  let simPitch=0, simRoll=0; // degrees
+  const target = {pitch:0, roll:0};
+  // 6DOF simulation state
+  let sim6 = null; // initialized after THREE available
+      // Quaternion attitude control (baseQuat keeps full orientation incl. yaw; displayed orientation strips yaw)
+  let baseQuat = null;          // actual integrated orientation (THREE.Quaternion)
+  let currentQuat = null;       // temp clone of baseQuat for smoothing logic
+  let targetQuat = null;        // external target orientation
+  let lastYawExtract = 0;       // cached yaw for near-vertical continuity (analytic fallback)
+  let prevDispPitch = 0, prevDispRoll = 0; // for continuity across wrap
+  let prevDispQuat = null;      // to keep quaternion sign continuity
+      window.setROVAttitudeQuaternion = function(x,y,z,w){
+        if(!targetQuat && window.THREE){ targetQuat = new THREE.Quaternion(); }
+        if(targetQuat){ targetQuat.set(x,y,z,w).normalize(); }
+      };
+      function extractDisplayQuat(q){
+        if(!window.THREE) return q;
+        // Pure quaternion swing-twist decomposition around world Y axis.
+        const axisY = new THREE.Vector3(0,1,0);
+        // Twist (yaw) component: project imaginary part onto Y.
+        const dotY = q.x*axisY.x + q.y*axisY.y + q.z*axisY.z; // == q.y since axisY=(0,1,0) but kept general
+        const proj = axisY.clone().multiplyScalar(dotY);
+        let twist = new THREE.Quaternion(proj.x, proj.y, proj.z, q.w);
+        if(twist.lengthSq() < 1e-12) twist.set(0,0,0,1); else twist.normalize();
+        // Swing is remaining (pitch/roll) rotation
+        let swing = twist.clone().invert().multiply(q).normalize();
+        const lockYawEl = document.getElementById('attitude-lock-yaw');
+        const lockYaw = !lockYawEl || lockYawEl.checked;
+        let displayQuat = lockYaw ? swing : q.clone();
+        // Sign continuity to avoid flips
+        if(prevDispQuat && displayQuat.dot(prevDispQuat) < 0){ displayQuat.x*=-1; displayQuat.y*=-1; displayQuat.z*=-1; displayQuat.w*=-1; }
+        prevDispQuat = displayQuat.clone();
+        // Store lastYawExtract for continuity of numeric yaw readout when unlocked
+        if(!lockYaw){
+          // Extract yaw angle from twist quaternion (angle about Y)
+          // angle = 2*acos(w); axis should align with Y, sign from y component
+          const ang = 2*Math.acos(Math.max(-1,Math.min(1,twist.w))); // 0..pi
+            let sign = Math.sign(twist.y) || 1; // direction
+          let yaw = ang * sign;
+          // Wrap to -pi..pi
+          if(yaw > Math.PI) yaw -= 2*Math.PI; else if(yaw < -Math.PI) yaw += 2*Math.PI;
+          lastYawExtract = yaw;
+        } else {
+          lastYawExtract = 0;
+        }
+        return displayQuat;
+      }
+      function continuousAngle(prev, cur){
+        let d = cur - prev; if(d>180) cur -= 360; else if(d<-180) cur += 360; return cur;
+      }
+      function retarget(){
+        target.pitch = (Math.random()*30-15); // -15..+15
+        target.roll  = (Math.random()*40-20); // -20..+20
+      }
+      let nextRetarget = performance.now()+4000;
+      function ease(val, targ, s){ return val + (targ-val)*Math.min(1, s); }
+  let isoCamPos=null, isoCamQuat=null, isoCamUp=null;
+  // Intro spin sequence: phase 0 = pitch 360, phase 1 = roll 360, phase 2 = normal motion
+  let introPhase = -1; // set to 0 after model load
+  let introRemain = 0; // radians remaining in current phase
+  const INTRO_SPEED_DEG = 90; // deg/sec
+  function animate3D(){
+        if(!threeReady){ requestAnimationFrame(animate3D); return; }
+        const now=performance.now(); const dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
+        if(!sim6 && window.THREE){
+          sim6 = {
+            angVel: new THREE.Vector3(), // rad/s (local)
+            targetAngVel: new THREE.Vector3(),
+            linVel: new THREE.Vector3(), // world units / s
+            targetLinVel: new THREE.Vector3(),
+            nextRetarget: now + 2500
+          };
+          if(rovObj){ rovObj.quaternion.identity(); }
+          currentQuat = rovObj ? rovObj.quaternion.clone() : null;
+        }
+        const INTRO_SPEED = INTRO_SPEED_DEG * Math.PI/180; // rad/s
+        // Intro deterministic rotations (ignore external target until finished)
+        if(baseQuat && introPhase>=0 && introPhase<2){
+          let step = INTRO_SPEED * dt;
+          if(step > introRemain) step = introRemain;
+          const axis = (introPhase===0)? new THREE.Vector3(1,0,0) : new THREE.Vector3(0,0,1); // pitch then roll
+          const half = step/2; const s = Math.sin(half); const dq = new THREE.Quaternion(axis.x*s, axis.y*s, axis.z*s, Math.cos(half));
+          baseQuat.multiply(dq).normalize();
+          introRemain -= step;
+          if(introRemain <= 1e-4){
+            introPhase++;
+            if(introPhase===1){ introRemain = Math.PI*2; }
+          }
+        } else {
+          // External quaternion path (after intro)
+          if(baseQuat && targetQuat){ baseQuat.slerp(targetQuat, Math.min(1, dt*5)); }
+        }
+        if(sim6 && baseQuat && introPhase>=2){
+          // 6DOF procedural motion (orientation + translation)
+          if(now >= sim6.nextRetarget){
+            // Pick new angular velocities (deg/s -> rad/s). Allow full spins.
+            const maxDeg = 90; // typical moderate
+            const spinChance = Math.random();
+            function randAxis(base){ return (Math.random()*2-1)*base; }
+            let ax = randAxis(maxDeg); let ay = 0; let az = randAxis(maxDeg); // suppress yaw (ay)
+            if(spinChance < 0.18){ // occasional full roll or pitch spin
+              const spinDeg = 180 + Math.random()*180; // 180-360 deg/s
+              const choose = Math.random();
+              if(choose < 0.5) ax = randAxis(spinDeg); else az = randAxis(spinDeg); // still no yaw
+            }
+            sim6.targetAngVel.set(ax, ay, az).multiplyScalar(Math.PI/180);
+            // (Disabled) Linear drift removed to keep model centered for pure isometric view
+            sim6.targetLinVel.set(0,0,0);
+            sim6.nextRetarget = now + 2500 + Math.random()*4000;
+          }
+          // Smooth angular & linear velocities
+            sim6.angVel.lerp(sim6.targetAngVel, 1 - Math.exp(-dt*2.5));
+            sim6.linVel.lerp(sim6.targetLinVel, 1 - Math.exp(-dt*1.5));
+          // Integrate rotation quaternion: dq = [axis*sin(theta/2), cos(theta/2)]
+          const av = sim6.angVel; const omega = av.length();
+          if(omega > 1e-5){
+            const theta = omega * dt;
+            const half = theta/2; const s = Math.sin(half);
+            const axis = av.clone().multiplyScalar(1/omega);
+            const dq = new THREE.Quaternion(axis.x*s, axis.y*s, axis.z*s, Math.cos(half));
+            baseQuat.multiply(dq).normalize();
+          }
+          // Keep model centered (no translation for stable isometric framing)
+          if(rovObj) rovObj.position.set(0,0,0);
+          currentQuat = baseQuat.clone();
+        }
+        // Reinforce camera isometric lock
+        if(camera && camera.isOrthographicCamera && isoCamPos && isoCamQuat){
+          camera.position.copy(isoCamPos);
+          camera.quaternion.copy(isoCamQuat);
+          camera.up.copy(isoCamUp);
+        }
+        // Update readouts (yaw/pitch/roll derived from quaternion)
+        if(baseQuat && rovObj){
+          const dispQuat = extractDisplayQuat(baseQuat);
+          rovObj.quaternion.copy(dispQuat);
+          // Derive pitch & roll directly from swing quaternion (dispQuat when yaw locked is swing-only)
+          // We still need scalar angles for UI; use quaternion relations rather than constructing Euler.
+          // Pitch: rotation bringing forward vector off horizontal. Compute using rotated forward basis.
+          const f = new THREE.Vector3(0,0,-1).applyQuaternion(dispQuat);
+          const horizLenF = Math.max(1e-8, Math.hypot(f.x,f.z));
+          const pitchRad = Math.atan2(-f.y, horizLenF); // nose up positive
+          // Roll: bank about forward axis; compute right vector tilt
+          const r = new THREE.Vector3(1,0,0).applyQuaternion(dispQuat);
+          const horizLenR = Math.max(1e-8, Math.hypot(r.x,r.z));
+          const rollRad = Math.atan2(r.y, horizLenR);
+          let pitchDegRaw = THREE.MathUtils.radToDeg(pitchRad);
+          let rollDegRaw  = THREE.MathUtils.radToDeg(rollRad);
+          const pitchDeg = continuousAngle(prevDispPitch, pitchDegRaw); prevDispPitch = pitchDeg;
+          const rollDeg  = continuousAngle(prevDispRoll,  rollDegRaw);  prevDispRoll  = rollDeg;
+          // Recompute/display yaw only if unlocked
+          const lockYawEl = document.getElementById('attitude-lock-yaw');
+          const lockYaw = !lockYawEl || lockYawEl.checked;
+          if(yawEl){
+            if(lockYaw){ yawEl.textContent='000°'; }
+            else { yawEl.textContent = THREE.MathUtils.radToDeg(lastYawExtract).toFixed(1)+'°'; }
+          }
+          if(pitchEl) pitchEl.textContent = pitchDeg.toFixed(1)+'°';
+          if(rollEl) rollEl.textContent  = rollDeg.toFixed(1)+'°';
+        }
+        renderer.render(scene,camera);
+        requestAnimationFrame(animate3D);
+      }
+      async function loadAll(force){
+        const loadingEl = document.getElementById('attitude-loading');
+        function setStatus(msg){ if(loadingEl) loadingEl.textContent=msg; }
+        if(rovObj && !force){ setStatus('Already loaded'); return; }
+        setStatus('Loading Three.js…');
+        setStatus('Loading Three.js…');
+        if(!window.THREE){ await loadScript('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js'); }
+        if(!window.THREE){ setStatus('Three.js failed'); return; }
+        // Attempt to load GLTFLoader (classic script first)
+        const startLoaderTime = performance.now();
+        async function ensureLoader(){
+          // 1. If already present
+          if(window.THREE && window.THREE.GLTFLoader) return true;
+          // 2. Try local three.min.js then local GLTFLoader.js
+          try{ if(!window.THREE){ setStatus('Loading local three.min.js…'); await loadScript('./three.min.js'); } }catch(e){ console.warn('Local three.min.js missing', e); }
+          if(window.THREE && !window.THREE.GLTFLoader){
+            try{ setStatus('Loading local GLTFLoader.js…'); await loadScript('./GLTFLoader.js'); }catch(e){ console.warn('Local GLTFLoader.js missing', e); }
+          }
+            if(window.THREE && window.THREE.GLTFLoader) return true;
+          // 3. Network classic
+          setStatus('Loading GLTFLoader…');
+          try{ await loadScript('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js'); }catch(e){ console.warn('Classic GLTFLoader script failed', e); }
+          if(window.THREE && window.THREE.GLTFLoader) return true;
+          // 4. ES module
+          try{
+            setStatus('Module loader…');
+            const mod = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.min.js').catch(()=>import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js'));
+            if(mod && mod.GLTFLoader && window.THREE){ window.THREE.GLTFLoader = mod.GLTFLoader; }
+          }catch(e){ console.warn('Module GLTFLoader load failed', e); }
+          if(window.THREE && window.THREE.GLTFLoader) return true;
+          // 5. Alternate CDN
+          try{ setStatus('Alternate CDN…'); await loadScript('https://unpkg.com/three@0.160.0/examples/js/loaders/GLTFLoader.js'); }catch(e){ console.warn('unpkg fallback failed', e); }
+          if(window.THREE && window.THREE.GLTFLoader) return true;
+          // 6. Older version
+          try{ setStatus('Older loader…'); await loadScript('https://cdn.jsdelivr.net/npm/three@0.155.0/examples/js/loaders/GLTFLoader.js'); }catch(e){ console.warn('Older loader failed', e); }
+          // 7. Final guidance
+          if(!(window.THREE && window.THREE.GLTFLoader)){
+            setStatus('GLTFLoader missing. Put three.min.js & GLTFLoader.js beside this file and reload.');
+          }
+          return !!(window.THREE && window.THREE.GLTFLoader);
+        }
+        const gotLoader = await Promise.race([
+          ensureLoader(),
+          new Promise(res=> setTimeout(()=>{ res(false); }, 8000))
+        ]);
+        if(!gotLoader){ setStatus('GLTFLoader missing (network?)'); return; }
+        if(!window.THREE.GLTFLoader){ setStatus('GLTFLoader missing'); return; }
+        const {THREE}=window;
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color('#0b1220');
+        const aspect = vp.clientWidth / Math.max(1,vp.clientHeight);
+        // Temporary perspective until model size known; will swap to ortho afterwards
+        camera = new THREE.PerspectiveCamera(50, aspect, 0.01, 100);
+        camera.position.set(0,0,3.2);
+        const amb = new THREE.AmbientLight(0xffffff, 0.7); scene.add(amb);
+        const dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(3,4,5); scene.add(dir);
+        renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+        renderer.setPixelRatio(window.devicePixelRatio||1);
+        renderer.setSize(vp.clientWidth, vp.clientHeight);
+        vp.innerHTML=''; vp.appendChild(renderer.domElement);
+        const loader = new THREE.GLTFLoader();
+        function loadFromUrl(urlLabel, objUrl){
+          setStatus('Loading model: '+urlLabel);
+          loader.load(objUrl, glb=>{
+            const modelRoot = glb.scene || glb.scenes[0];
+            // Scale model uniformly to fit viewport target size before computing center
+            let box = new THREE.Box3().setFromObject(modelRoot);
+            const size = new THREE.Vector3(); box.getSize(size);
+            const maxDim = Math.max(size.x,size.y,size.z)||1; const scale = 1.4/maxDim; modelRoot.scale.setScalar(scale);
+            box = new THREE.Box3().setFromObject(modelRoot);
+            const center = new THREE.Vector3(); box.getCenter(center);
+            modelRoot.position.sub(center); // recenter geometry around origin
+            // Create pivot at origin and add modelRoot so rotations occur about centered origin
+            const pivot = new THREE.Group(); pivot.name='ROVPivot'; pivot.add(modelRoot);
+            rovObj = pivot;
+            baseQuat = new THREE.Quaternion();
+            currentQuat = baseQuat.clone();
+            introPhase = 0; introRemain = Math.PI*2; // start intro sequence
+            // Add a forward arrow indicator (assumes glTF forward = -Z, up = +Y)
+            try{
+              const size2 = new THREE.Vector3(); box.getSize(size2);
+              const arrowLen = Math.max(0.1, size2.z*0.55 || 0.6);
+              const headLen = arrowLen * 0.35;
+              const headWidth = headLen * 0.55;
+              const arrow = new THREE.ArrowHelper(new THREE.Vector3(0,0,-1), new THREE.Vector3(0,0,0), arrowLen, 0xff3355, headLen, headWidth);
+              arrow.name = 'ForwardArrow';
+              // Subtle emissive material for visibility if overridden
+              if(arrow.line){ arrow.line.material.color.set(0xff3355); }
+              if(arrow.cone){ arrow.cone.material.color.set(0xff6688); }
+              modelRoot.add(arrow); // attach to geometry, not pivot
+            }catch(e){ console.warn('Forward arrow add failed', e); }
+            // Artificial horizon (zero roll/yaw reference) – static in world space
+            try{
+              if(horizonGroup){ scene.remove(horizonGroup); horizonGroup.traverse(o=>{ if(o.geometry) o.geometry.dispose&&o.geometry.dispose(); if(o.material) o.material.dispose&&o.material.dispose(); }); }
+              horizonGroup = new THREE.Group(); horizonGroup.name='ArtificialHorizon';
+              const r = maxDim*0.9; const ringSegs=64;
+              const circleGeom = new THREE.CircleGeometry(r, ringSegs);
+              // Convert to line (only perimeter)
+              const edges = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(circleGeom.attributes.position.array.slice(3), 3)); // skip center vertex
+              const lineMat = new THREE.LineBasicMaterial({color:0x446bff, transparent:true, opacity:0.55});
+              const ring = new THREE.LineLoop(edges, lineMat);
+              ring.rotation.x = Math.PI/2; // place flat (Y up)
+              horizonGroup.add(ring);
+              // Cross lines (N-S / E-W) representing axes
+              const crossMat = new THREE.LineBasicMaterial({color:0x88aaff, transparent:true, opacity:0.4});
+              const crossGeom = new THREE.BufferGeometry();
+              crossGeom.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array([
+                -r,0,0,  r,0,0, // X axis
+                0,0,-r, 0,0,r   // Z axis (forward/back)
+              ]),3));
+              const cross = new THREE.LineSegments(crossGeom, crossMat);
+              cross.rotation.x = Math.PI/2;
+              horizonGroup.add(cross);
+              // Horizon band (thin translucent disc) for subtle plane reference
+              const bandGeom = new THREE.RingGeometry(r*0.96, r*1.02, ringSegs);
+              const bandMat = new THREE.MeshBasicMaterial({color:0x3b82f6, transparent:true, opacity:0.08, side:THREE.DoubleSide});
+              const band = new THREE.Mesh(bandGeom, bandMat);
+              band.rotation.x = Math.PI/2;
+              horizonGroup.add(band);
+              // Compass headings (N,E,S,W) and intermediate ticks
+              try{
+                const headings = [
+                  {label:'N', ang:0},
+                  {label:'E', ang:Math.PI/2},
+                  {label:'S', ang:Math.PI},
+                  {label:'W', ang:Math.PI*1.5}
+                ];
+                function makeLabelSprite(text){
+                  const cvs=document.createElement('canvas'); const ctx=cvs.getContext('2d');
+                  const fontSize=48; ctx.font=fontSize+'px sans-serif';
+                  const pad=18; const w=ctx.measureText(text).width+pad; const h=fontSize+pad;
+                  cvs.width=w; cvs.height=h; ctx.font=fontSize+'px sans-serif'; ctx.textBaseline='middle'; ctx.textAlign='center';
+                  // background glow
+                  ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.roundRect(0,0,w,h, h*0.25); ctx.fill();
+                  ctx.fillStyle='#fff'; ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=2; ctx.stroke();
+                  ctx.fillStyle='#e2e8f0'; ctx.fillText(text, w/2, h/2+1);
+                  const tex = new THREE.CanvasTexture(cvs); tex.anisotropy=4; tex.minFilter=THREE.LinearFilter; tex.magFilter=THREE.LinearFilter; tex.needsUpdate=true;
+                  const mat = new THREE.SpriteMaterial({map:tex, transparent:true});
+                  const spr = new THREE.Sprite(mat); const scale= r*0.22; spr.scale.set(scale * (w/h), scale, 1); return spr;
+                }
+                headings.forEach(hd=>{
+                  const spr = makeLabelSprite(hd.label);
+                  const x = Math.sin(hd.ang) * r; // ring rotated so forward = -Z; use sin/cos mapping
+                  const z = Math.cos(hd.ang) * r;
+                  spr.position.set(x, 0.001, z); // slight lift to avoid z-fight
+                  spr.center.set(0.5,0.5);
+                  horizonGroup.add(spr);
+                });
+                // Minor tick marks every 30°
+                const tickGeom = new THREE.BufferGeometry();
+                const tickVerts=[]; const tickLen = r*0.05;
+                for(let a=0; a<360; a+=30){
+                  const rad = a*Math.PI/180;
+                  const sx = Math.sin(rad)* (r - tickLen);
+                  const sz = Math.cos(rad)* (r - tickLen);
+                  const ex = Math.sin(rad)* r;
+                  const ez = Math.cos(rad)* r;
+                  tickVerts.push(sx,0.0005,sz, ex,0.0005,ez);
+                }
+                tickGeom.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(tickVerts),3));
+                const tickMat = new THREE.LineBasicMaterial({color:0x99bbff, transparent:true, opacity:0.55});
+                const ticks = new THREE.LineSegments(tickGeom, tickMat); ticks.rotation.x = Math.PI/2; horizonGroup.add(ticks);
+              }catch(e){ console.warn('Compass add failed', e); }
+              scene.add(horizonGroup);
+            }catch(e){ console.warn('Horizon build failed', e); }
+            // Switch to orthographic isometric camera
+            try{
+              const orthoSize = maxDim*0.9; // half-extent for frustum
+              const isoAspect = vp.clientWidth / Math.max(1,vp.clientHeight);
+              const s = orthoSize;
+              const orthoCam = new THREE.OrthographicCamera(-s*isoAspect, s*isoAspect, s, -s, -10, 10);
+              // Isometric direction: 45° around Y, ~35.264° down from top (i.e., rotate X by -35.264°)
+              const isoDist = maxDim*2.2;
+              const yaw45 = Math.PI/4; // 45°
+              const pitchDeg = 35.264; const pitch = THREE.MathUtils.degToRad(pitchDeg);
+              // Position camera based on rotations
+              const cx = Math.cos(yaw45) * Math.cos(pitch);
+              const cz = Math.sin(yaw45) * Math.cos(pitch);
+              const cy = Math.sin(pitch);
+              orthoCam.position.set(cx, cy, cz).multiplyScalar(isoDist);
+              orthoCam.up.set(0,1,0);
+              orthoCam.lookAt(new THREE.Vector3(0,0,0));
+              camera = orthoCam;
+              isoCamPos = orthoCam.position.clone();
+              isoCamQuat = orthoCam.quaternion.clone();
+              isoCamUp = orthoCam.up.clone();
+              // Prepare quaternions
+              currentQuat = new THREE.Quaternion();
+              targetQuat = null; // until external setROVAttitudeQuaternion is called
+              // Resize handler for orthographic frustum
+              function updateOrtho(){
+                const w = vp.clientWidth, h = vp.clientHeight; const a = w/Math.max(1,h);
+                camera.left = -s*a; camera.right = s*a; camera.top = s; camera.bottom = -s; camera.updateProjectionMatrix();
+                renderer.setSize(w,h);
+                // Re-cache locked orientation/position (do not rotate with resize)
+                isoCamPos.copy(camera.position); isoCamQuat.copy(camera.quaternion); isoCamUp.copy(camera.up);
+              }
+              updateOrtho();
+              window.addEventListener('resize', updateOrtho);
+            }catch(e){ console.warn('Isometric camera setup failed', e); }
+            scene.add(rovObj);
+            setTimeout(()=>{ if(loadingEl) loadingEl && loadingEl.remove(); }, 50);
+            threeReady=true; animate3D();
+          }, xhr=>{ if(loadingEl && xhr.total) loadingEl.textContent='Loading '+((xhr.loaded/xhr.total*100)|0)+'%'; }, err=>{ console.error('Load failed', err); setStatus('Model load failed'); });
+        }
+        // If user has already chosen a file (reload path), reuse lastFileURL
+        if(window.__attModelFileURL){ loadFromUrl('file', window.__attModelFileURL); } else {
+          setStatus('Awaiting file…');
+        }
+        window.addEventListener('resize',()=>{ if(!renderer||!camera) return; const w=vp.clientWidth, h=vp.clientHeight; renderer.setSize(w,h); camera.aspect=w/Math.max(1,h); camera.updateProjectionMatrix(); });
+      }
+      const loadBtn = document.getElementById('attitude-load-btn');
+      const reloadBtn = document.getElementById('attitude-reload-btn');
+      const fileInput = document.getElementById('attitude-file');
+      if(loadBtn){
+        loadBtn.addEventListener('click', async ()=>{
+          if(fileInput){ fileInput.click(); return; }
+        });
+      }
+      if(fileInput){
+        fileInput.addEventListener('change', async (e)=>{
+          const f = e.target.files && e.target.files[0];
+          if(!f){ return; }
+          if(window.__attModelFileURL){ try{ URL.revokeObjectURL(window.__attModelFileURL); }catch(_){} }
+          window.__attModelFileURL = URL.createObjectURL(f);
+          // Reset UI
+          const loadingEl = document.getElementById('attitude-loading'); if(loadingEl){ loadingEl.textContent='Preparing…'; }
+          await loadAll(false);
+          if(loadBtn){ loadBtn.classList.add('hidden'); }
+          if(reloadBtn){ reloadBtn.classList.remove('hidden'); }
+        });
+      }
+      if(reloadBtn){
+        reloadBtn.addEventListener('click', async ()=>{
+          if(fileInput){ fileInput.click(); }
+        });
+      }
+    })();
+
+    // Track heading for 3D yaw binding
+    const _origSetCompassHeading = setCompassHeading;
+    window.__lastHeadingDeg = 0;
+    setCompassHeading = function(h){ window.__lastHeadingDeg = h; _origSetCompassHeading(h); };
     if (window.ResizeObserver){
       const ro = new ResizeObserver(()=>updateCompassScale());
       const vidEl = document.getElementById('video-container');
@@ -1262,14 +2283,23 @@
       const main = document.getElementById('main');
       if(!dock || !main) return;
 
-      const PANELS = ['panel-stitcher','panel-aux','panel-power'];
+  const PANELS = ['panel-stitcher','panel-attitude','panel-power','panel-surface'];
 
-      // Restore stored modes/positions
+      // Restore modes/positions (but always force surface panel docked on init)
       PANELS.forEach(id=>{
         try{
-          const mode = localStorage.getItem('panelMode:'+id) || 'dock';
           const p = document.getElementById(id);
           if(!p) return;
+          let mode = localStorage.getItem('panelMode:'+id) || 'dock';
+          if(id==='panel-surface'){
+            // Force dock
+            mode='dock';
+            p.classList.remove('floating-panel');
+            p.style.left=''; p.style.top='';
+            try{ localStorage.setItem('panelMode:'+id,'dock'); }catch(_){ }
+            if(p.parentElement!==dock){ dock.appendChild(p); }
+            return; // skip float handling
+          }
           if(mode==='float'){
             makeFloating(p);
             const pos = JSON.parse(localStorage.getItem('panelPos:'+id) || '{}');
@@ -1277,7 +2307,6 @@
               p.style.left = pos.x+'px';
               p.style.top  = pos.y+'px';
             } else {
-              // default positions to avoid overlap
               const idx = PANELS.indexOf(id);
               p.style.left = (12 + idx*16) + 'px';
               p.style.top  = (12 + idx*16) + 'px';
@@ -1309,13 +2338,31 @@
           localStorage.setItem('dockOrder', JSON.stringify(ids));
         }catch(_){ }
       }
-      // Restore order if saved
+      // Restore order if saved, then ensure surface panel sits after power by default
       try{
         const ord = JSON.parse(localStorage.getItem('dockOrder')||'[]');
         if(Array.isArray(ord) && ord.length){
           ord.forEach(id=>{ const el=document.getElementById(id); if(el && el.parentElement===dock) dock.appendChild(el); });
         }
       }catch(_){ }
+      (function enforceSurfacePlacement(){
+        const sp = document.getElementById('panel-surface');
+        const pw = document.getElementById('panel-power');
+        if(!sp || !dock) return;
+        // If surface panel is floating, skip.
+        if(sp.classList.contains('floating-panel')) return;
+        // If order already has it after power, do nothing.
+        if(pw && pw.parentElement===dock){
+          const panels = [...dock.querySelectorAll('.dock-panel')];
+          const pwIdx = panels.indexOf(pw);
+          const spIdx = panels.indexOf(sp);
+          if(pwIdx!==-1 && spIdx!==-1 && spIdx < pwIdx){
+            // move sp below pw
+            dock.insertBefore(sp, pw.nextSibling);
+            saveDockOrder();
+          }
+        }
+      })();
 
       // Attach handlers to headers
       [...document.querySelectorAll('.dock-panel')].forEach(panel=>{
@@ -1374,6 +2421,11 @@
         };
         const onDown=(e)=>{
           if(e.button===2) return; // ignore right click
+          // If clicking an interactive control inside header (like surface power toggle or reboot button) skip drag
+          const tgt = e.target;
+          if(tgt && tgt.closest && (tgt.closest('#surface-power-toggle') || tgt.closest('#bms-reboot-btn'))){
+            return; // allow button click without dragging
+          }
           const pt = getPoint(e);
           startX = pt.x; startY = pt.y;
           const rect = panel.getBoundingClientRect();
@@ -1434,21 +2486,31 @@
       try{
         c.group && c.group('%cROV UI Tests','color:#93c5fd');
         // Aux systems existence
-        c.assert(!!document.getElementById('aux-widget'),'Aux widget exists');
-        c.assert(!!lightSlider && !!lightValue,'Light controls exist');
-        c.assert(!!manipStateText && !!manipOpenBtn && !!manipCloseBtn && !!manipStopBtn,'Manipulator controls exist');
-        c.assert(!!camTiltSlider && !!camTiltValue,'Camera tilt controls exist');
-        c.assert(!!rovGainSlider && !!rovGainValue,'Gain controls exist');
-        // Manip state toggles
-        setManipState('OPEN');  c.assert(manipStateText.textContent==='OPEN','Manip OPEN');
-        setManipState('CLOSE'); c.assert(manipStateText.textContent==='CLOSE','Manip CLOSE');
-        setManipState('STOPPED'); c.assert(manipStateText.textContent==='STOPPED','Manip STOPPED');
-        // Light slider sync
-        if (lightSlider){ lightSlider.value='77'; lightSlider.dispatchEvent(new Event('input')); c.assert(lightValue.textContent.includes('77'), 'Light value reflects slider'); }
-        // Camera tilt sync & bounds
-        if (camTiltSlider){ camTiltSlider.value='-30'; camTiltSlider.dispatchEvent(new Event('input')); c.assert(camTiltValue.textContent.includes('-30'),'Tilt shows -30°'); camTiltSlider.value='90'; camTiltSlider.dispatchEvent(new Event('input')); c.assert(camTiltValue.textContent.includes('90'),'Tilt shows 90°'); }
-        // Gain slider sync & bounds
-        if (rovGainSlider){ rovGainSlider.value='73'; rovGainSlider.dispatchEvent(new Event('input')); c.assert(rovGainValue.textContent.includes('73'),'Gain shows 73%'); rovGainSlider.value='0'; rovGainSlider.dispatchEvent(new Event('input')); c.assert(rovGainValue.textContent.includes('0'),'Gain shows 0%'); }
+  c.assert(!!lightValue,'Light display exists');
+  c.assert(!!lightPopSlider,'Light popover slider exists');
+  // Simulate light change via slider
+  if(lightPopSlider){ lightPopSlider.value='77'; lightPopSlider.dispatchEvent(new Event('input')); c.assert(lightValue.textContent.includes('77'),'Light value updates from popover slider'); }
+  c.assert(!!manipStateValue,'Manipulator state display exists');
+  c.assert(!!tiltValue,'Tilt display exists');
+  c.assert(!!gainValue,'Gain display exists');
+  // Manip state static
+  setManipState('STOPPED'); c.assert(manipStateValue.textContent==='STOPPED','Manip STOPPED');
+  // Light display static test
+  c.assert(lightValue.textContent.trim().endsWith('%'), 'Light shows percentage');
+  // Tilt display static test
+  c.assert(/°$/.test(tiltValue.textContent.trim()),'Tilt shows degrees');
+  c.assert(!!tiltPopSlider,'Tilt popover slider exists');
+  if(tiltPopSlider){ tiltPopSlider.value='30'; tiltPopSlider.dispatchEvent(new Event('input')); c.assert(tiltValue.textContent.includes('30'),'Tilt value updates from popover slider'); }
+  c.assert(!!tiltArcInd,'Tilt arc indicator exists');
+  // Gain display static test
+  c.assert(gainValue.textContent.trim().endsWith('%'),'Gain shows percentage');
+  c.assert(!!gainPopSlider,'Gain popover slider exists');
+  if(gainPopSlider){ gainPopSlider.value='70'; gainPopSlider.dispatchEvent(new Event('input')); c.assert(gainValue.textContent.includes('70'),'Gain value updates from popover slider'); }
+  c.assert(!!headingValue,'Heading value exists');
+  c.assert(/°$/.test(headingValue.textContent.trim()),'Heading shows degrees');
+  const depthRibbonEl = document.getElementById('depth-ribbon');
+  c.assert(!!depthRibbonEl,'Depth ribbon exists');
+  c.assert(!!manipPopover,'Manipulator popover exists');
         // Power label shows watts
         c.assert(/W$/.test((document.getElementById('current-value')||{}).textContent||''), 'Power readout shows W');
         // Staple counter exists and decrements on crimp completion

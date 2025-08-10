@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<!-- build: v1.2.4 - Aux: Replace ROV Power with Gain slider (like Camera Tilt). Remove power pct logic & tests. -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ROV Control Interface</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Bottom overlay info bar (Depth + Water Temp) */
+    .video-infobar{ position:absolute; left:.5rem; right:.5rem; bottom:.5rem; display:flex; align-items:center; gap:.75rem; background:rgba(0,0,0,.65); border:1px solid rgba(255,255,255,.15); border-radius:.5rem; padding:.35rem .5rem; pointer-events:none; z-index:102; }
+    .video-infobar .row{ display:flex; align-items:center; gap:.4rem; padding:.15rem .45rem; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:.375rem; }
+    .video-infobar .lbl{ font-size:.7rem; color:#9ca3af; }
+    .video-infobar .val{ font-size:.85rem; font-weight:700; color:#e5e7eb; }
+    body.compact .video-infobar{ bottom:.35rem; padding:.25rem .4rem; }
+    :root { --panel-1:#111827; --panel-2:#1f2937; --stroke:#374151; }
+    html, body { height: 100%; }
+    body { font-family: 'Inter', sans-serif; background:#0b1220; color:#e5e7eb; }
+
+    .widget { background-color: var(--panel-2); border:1px solid var(--stroke); border-radius:0.75rem; padding:1rem; box-shadow:0 4px 6px -1px rgb(0 0 0 / .25), 0 2px 4px -2px rgb(0 0 0 / .2); display:flex; flex-direction:column; }
+    .progress-bar-bg { background-color: var(--panel-1); }
+    .status-indicator-dot { width:10px; height:10px; border-radius:50%; }
+    .pulse-anim { animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+    @keyframes pulse { 50% { opacity:.5 } }
+
+    .app-grid { display:grid; grid-template-columns:minmax(680px,1fr); grid-template-rows:auto 1fr auto; grid-template-areas:"topbar" "main" "sysbar"; gap:.75rem; padding:.75rem; height:100svh; box-sizing:border-box; }
+    #topbar{grid-area:topbar} #main{grid-area:main} #sysbar{grid-area:sysbar}
+
+    .video-wrap{ position:relative; background:#000; border:1px solid var(--stroke); border-radius:.75rem; overflow:hidden; min-height:62vh; display:flex; align-items:center; justify-content:center; }
+    .video-canvas{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; background: radial-gradient(1200px 600px at 50% 40%, rgba(255,255,255,.05), rgba(0,0,0,.4) 60%, rgba(0,0,0,.8)); }
+.video-el{ width:100%; height:100%; object-fit:contain; aspect-ratio: 9 / 16; background:#000; display:block; }
+    .hud{ pointer-events:none; position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-start; z-index:2; }
+    .video-play-btn{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:5; padding:.4rem .9rem; border-radius:.5rem; border:1px solid rgba(255,255,255,.25); background:rgba(0,0,0,.65); color:#fff; font-size:.875rem; display:none; }
+    .video-play-btn:focus{ outline:2px solid #60a5fa; outline-offset:2px; }
+    .video-load-btn{ position:absolute; left:.5rem; bottom:.5rem; z-index:6; padding:.3rem .6rem; border-radius:.375rem; border:1px solid rgba(255,255,255,.25); background:rgba(0,0,0,.6); color:#fff; font-size:.75rem; display:inline-block; }
+    .reticle{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:110px; height:110px; border:1px solid rgba(255,255,255,.25); border-radius:999px; box-shadow:0 0 0 1px rgba(255,255,255,.08) inset; }
+    .reticle::before,.reticle::after{ content:""; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:rgba(255,255,255,.15); }
+    .reticle::before{ width:1px; height:120px; } .reticle::after{ width:120px; height:1px; }
+
+    /* Compass ribbon */
+    /* Vertical Depth Ribbon (left side of video) */
+    .depth-ribbon{ position:absolute; left:.5rem; top:10%; bottom:10%; width:64px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.12); border-radius:.5rem; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.35); pointer-events:none; z-index:100; 
+      --readout-gap: 56px; /* reserve space at right so center line doesn't run under the text */
+      -webkit-mask-image:linear-gradient(0deg, rgba(0,0,0,0) 0%, #000 22%, #000 78%, rgba(0,0,0,0) 100%);
+              mask-image:linear-gradient(0deg, rgba(0,0,0,0) 0%, #000 22%, #000 78%, rgba(0,0,0,0) 100%);
+    }
+    .depth-track{ position:absolute; left:0; width:100%; will-change:transform; }
+    .depth-center{ position:absolute; left:6px; right:6px; top:50%; height:2px; transform:translateY(-50%); background:#f59e0b; box-shadow:0 0 6px rgba(245,158,11,.8); border-radius:1px; }
+    .depth-readout{ position:absolute; top:50%; right:-8px; transform:translateY(-50%); display:flex; flex-direction:column; align-items:flex-end; gap:2px; padding:4px 6px; border-radius:6px; border:1px solid rgba(255,255,255,.2); background:rgba(0,0,0,.35); text-shadow:0 1px 2px rgba(0,0,0,.85); }
+    .depth-number{ font-weight:900; font-size:clamp(11px, 1vw, 12px); line-height:1; letter-spacing:.2px; }
+    .depth-unit{ font-size:clamp(8px, 0.8vw, 10px); line-height:1; margin-top:-2px; opacity:.95; }
+    @media (max-width: 900px){
+      .depth-readout{ right:-10px; }
+    }
+    .depth-readout.red{ border-color:rgba(248,113,113,.4); background:rgba(248,113,113,.12); text-shadow:0 0 6px rgba(248,113,113,.35), 0 1px 2px rgba(0,0,0,.9); }
+    .depth-danger{ position:absolute; left:6px; right:6px; height:2px; background:#ef4444; box-shadow:0 0 8px rgba(239,68,68,.7); }
+    .depth-tick{ position:relative; height:6px; display:flex; align-items:flex-start; }
+    .depth-tick .line{ position:absolute; left:8px; height:1px; background:rgba(255,255,255,.85); }
+    .depth-tick .lbl{ position:absolute; left:26px; top:-6px; font-size:10px; color:#e5e7eb; text-shadow:0 1px 2px rgba(0,0,0,.85); }
+    .depth-tick.m1 .line{ width:8px; opacity:.55; }
+    .depth-tick.m5 .line{ width:16px; opacity:.8; }
+    .depth-tick.m10 .line{ width:24px; height:2px; opacity:1; box-shadow:0 0 4px rgba(255,255,255,.45); }
+    .depth-tick.m5 .lbl{ color:#ffffff; }
+    .compass-ribbon{ position:absolute; left:50%; top:calc(5% + 10px); transform:translateX(-50%) scale(var(--compass-scale,1)); transform-origin:center top; width:min(780px,90%); height:50px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.12); border-radius:.5rem; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.35); pointer-events:none; z-index:100; -webkit-mask-image:linear-gradient(90deg, rgba(0,0,0,0) 0%, #000 45%, #000 55%, rgba(0,0,0,0) 100%); mask-image:linear-gradient(90deg, rgba(0,0,0,0) 0%, #000 45%, #000 55%, rgba(0,0,0,0) 100%); }
+    .compass-ribbon::after{ content:""; position:absolute; inset:0; background:linear-gradient(90deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.5) 100%); pointer-events:none; }
+    .compass-track{ position:absolute; top:0; left:0; height:100%; display:flex; align-items:flex-end; will-change:transform; }
+    .compass-center{ position:absolute; top:4px; bottom:4px; left:50%; width:2px; transform:translateX(-50%); background:#f59e0b; box-shadow:0 0 6px rgba(245,158,11,.8); border-radius:1px; }
+    .rec-badge{ position:absolute; top:1rem; left:.5rem; background:rgba(0,0,0,.65); border:1px solid rgba(255,255,255,.12); border-radius:.375rem; padding:.25rem .5rem; font-size:.75rem; display:flex; align-items:center; gap:.4rem; z-index:101; pointer-events:none; }
+
+    /* Compass label styles */
+    .compass-label{ font-size:10px; color:#e5e7eb; text-shadow:0 1px 2px rgba(0,0,0,.65); line-height:1; }
+    .compass-label[data-type="numeric"]{ color:#ffffff; text-shadow:0 1px 2px rgba(0,0,0,.85); background:transparent; border:none; padding:0; }
+    .compass-label.cardinal{ font-size:16px; font-weight:900; color:#60a5fa; letter-spacing:.6px; -webkit-text-stroke:.6px rgba(0,0,0,.65); text-shadow:0 0 10px rgba(59,130,246,.35), 0 1px 2px rgba(0,0,0,.9), 0 0 20px rgba(59,130,246,.2); background:rgba(59,130,246,.18); border:1px solid rgba(96,165,250,.35); padding:2px 8px; border-radius:6px; }
+    .compass-label.cardinal.north{ color:#f43f5e; text-shadow:0 0 12px rgba(244,63,94,.65), 0 1px 2px rgba(0,0,0,.95); border-color:rgba(244,63,94,.55); background:rgba(244,63,94,.18); }
+    .compass-label.intercardinal{ font-size:13px; font-weight:800; color:#60a5fa; letter-spacing:.4px; -webkit-text-stroke:.4px rgba(0,0,0,.6); text-shadow:0 0 8px rgba(59,130,246,.3), 0 1px 2px rgba(0,0,0,.85); background:rgba(59,130,246,.12); border:1px solid rgba(96,165,250,.28); padding:1px 6px; border-radius:5px; }
+
+    /* Stitcher widget */
+    .stitch-wrap{ display:flex; flex-direction:column; gap:.5rem; }
+    .stitch-bar{ position:relative; height:16px; background:linear-gradient(180deg,#0b1220,#0a0f1a); border:1px solid rgba(255,255,255,.12); border-radius:999px; overflow:hidden; }
+    .stitch-zone{ position:absolute; top:0; bottom:0; right:0; width:33.3333%; background:linear-gradient(90deg, rgba(34,197,94,.05), rgba(34,197,94,.25)); box-shadow:inset 0 0 0 1px rgba(34,197,94,.35); }
+    .stitch-ind{ position:absolute; top:-6px; width:0; height:28px; left:0; }
+    .stitch-ind::before{ content:""; position:absolute; left:-1px; top:0; bottom:0; width:3px; background:#eab308; box-shadow:0 0 8px rgba(234,179,8,.8); border-radius:2px; }
+    .stitch-scale{ display:flex; justify-content:space-between; font-size:11px; color:#9ca3af; }
+    .stitch-scale .end{ font-weight:700; color:#e5e7eb; }
+    .pill{ border:1px solid rgba(255,255,255,.12); padding:.2rem .5rem; border-radius:.5rem; font-size:11px; display:inline-flex; align-items:center; gap:.35rem; }
+    /* Staple count visuals */
+    .staples-badge{ font-weight:800; color:#e5e7eb; letter-spacing:.2px; }
+    .staples-flash{ animation:staplesFlash 700ms ease-out; }
+    @keyframes staplesFlash{ 0%{ color:#fcd34d; text-shadow:0 0 10px rgba(252,211,77,.85); } 100%{ color:#e5e7eb; text-shadow:none; } }
+
+    /* Aux Systems widget */
+    .seg-btn{ border:1px solid rgba(148,163,184,.35); background:rgba(0,0,0,.25); border-radius:.375rem; padding:.25rem .5rem; font-size:.75rem; color:#e5e7eb; }
+    .seg-btn[aria-pressed="true"]{ border-color:#60a5fa; background:rgba(59,130,246,.15); box-shadow:0 0 0 1px rgba(59,130,246,.25) inset; }
+
+    @media (max-width:1100px){ .app-grid{height:auto; min-height:100svh} .video-wrap{min-height:48vh} }
+      /* --- AUX WIDGET COMPACT MODE --- */
+    .aux-compact{ padding:.5rem !important; }
+    .aux-compact h3{ font-size:.95rem; margin-bottom:.1rem; }
+    .aux-compact .pill{ font-size:10px; padding:.1rem .4rem; border-radius:.4rem; }
+    .aux-compact .seg-btn{ font-size:.7rem; padding:.2rem .45rem; border-radius:.3rem; }
+    .aux-compact .mb-1{ margin-bottom:.2rem !important; }
+    .aux-compact .gap-2{ gap:.3rem !important; }
+    .aux-compact .gap-3{ gap:.4rem !important; }
+    .aux-compact input[type=range]{ height:18px; }
+    .aux-compact input[type=range]::-webkit-slider-runnable-track{ height:3px; }
+    .aux-compact input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:8px; height:8px; border-radius:999px; margin-top:-2.5px; }
+    .aux-compact input[type=range]::-moz-range-track{ height:3px; }
+    .aux-compact input[type=range]::-moz-range-thumb{ width:8px; height:8px; border:none; border-radius:999px; }
+    .aux-compact input[type=range]::-ms-track{ height:3px; }
+      /* Global compact mode for all widgets & HUD */
+    body.compact .widget{ padding:.35rem !important; }
+    body.compact .widget h3{ font-size:.95rem; margin-bottom:.15rem; }
+    body.compact .pill{ font-size:9px; padding:.08rem .35rem; border-radius:.35rem; }
+    body.compact .seg-btn{ font-size:.65rem; padding:.16rem .4rem; border-radius:.3rem; }
+    body.compact .gap-3{ gap:.4rem !important; }
+    body.compact .gap-2{ gap:.3rem !important; }
+    body.compact .mb-1{ margin-bottom:.2rem !important; }
+    body.compact input[type=range]{ height:18px; }
+    body.compact input[type=range]::-webkit-slider-runnable-track{ height:3px; }
+    body.compact input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:8px; height:8px; border-radius:999px; margin-top:-2.5px; }
+    body.compact input[type=range]::-moz-range-track{ height:3px; }
+    body.compact input[type=range]::-moz-range-thumb{ width:8px; height:8px; border:none; border-radius:999px; }
+    body.compact input[type=range]::-ms-track{ height:3px; }
+
+    /* Compact HUD: compass ribbon & REC */
+    body.compact .compass-ribbon{ height:36px; }
+    body.compact .compass-center{ top:3px; bottom:3px; }
+    body.compact .rec-badge{ top:.4rem; font-size:.6rem; padding:.1rem .3rem; }
+
+    /* Ensure system bar widgets never overlap on narrower screens */
+    @media (max-width: 1200px){
+      #sysbar{ gap:.5rem; }
+      #power-widget, #aux-widget, #stitcher-widget{
+        flex-basis:100% !important;
+        max-width:100% !important;
+      }
+    }
+
+    /* Topbar compact rules to reduce vertical footprint */
+    #topbar.top-compact{ padding:.25rem .5rem !important; }
+    #topbar.top-compact .flex{ gap:.25rem; }
+    #topbar.top-compact .text-base{ font-size:.9rem; line-height:1.05; }
+    #topbar.top-compact .text-sm{ font-size:.7rem; line-height:1.05; }
+    #topbar.top-compact .text-xs{ font-size:.65rem; line-height:1.05; }
+    #topbar.top-compact .w-8{ width:24px; }
+    #topbar.top-compact .h-8{ height:24px; }
+    #topbar.top-compact .px-2{ padding-left:.35rem; padding-right:.35rem; }
+    #topbar.top-compact .py-0\.5{ padding-top:.06rem; padding-bottom:.06rem; }
+    #topbar.top-compact .gap-2{ gap:.25rem; }
+
+    /* AUX compact: Shorten slider width for compact mode */
+    #aux-widget .aux-cell input[type=range]{ max-width:140px; }
+
+    /* --- UX polish: readability, focus, motion --- */
+    .num{ font-variant-numeric: tabular-nums; font-feature-settings:"tnum" 1; }
+    button:focus-visible, .seg-btn:focus-visible, .video-play-btn:focus-visible, .video-load-btn:focus-visible{
+      outline:2px solid #60a5fa; outline-offset:2px;
+    }
+    .seg-btn{ min-height:28px; }
+    /* App menu (logo dropdown) */
+    .appmenu{ position:absolute; left:0; top:100%; margin-top:.35rem; min-width:220px; background:rgba(17,24,39,.98); border:1px solid rgba(55,65,81,.8); border-radius:.5rem; box-shadow:0 8px 20px rgba(0,0,0,.45); padding:.5rem; display:none; z-index:500; }
+    .appmenu.open{ display:block; }
+    .appmenu h4{ font-size:.75rem; color:#9ca3af; padding:.25rem .4rem .35rem; border-bottom:1px solid rgba(55,65,81,.6); margin-bottom:.35rem; }
+    .appmenu .row{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.25rem .4rem; border-radius:.35rem; }
+    .appmenu .row:hover{ background:rgba(255,255,255,.04); }
+    .appmenu label{ font-size:.8rem; color:#e5e7eb; }
+    .appmenu input[type=checkbox]{ width:16px; height:16px; }
+    @media (prefers-reduced-motion: reduce){
+      *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:0s !important; scroll-behavior:auto !important; }
+      .pulse-anim{ animation:none !important; }
+    }
+    /* Circular gauges (smaller to fit two side-by-side) */
+    .gauge{ position:relative; width:64px; height:64px; }
+    .gauge svg{ width:64px; height:64px; display:block; }
+    .gauge .track{ stroke:rgba(255,255,255,.10); stroke-width:7; fill:none; transform:rotate(-90deg); transform-origin:50% 50%; }
+    .gauge .arc{
+      stroke:#22c55e; stroke-width:7; fill:none; stroke-linecap:round;
+      transform:rotate(-90deg); transform-origin:50% 50%;
+      transition:stroke-dashoffset .2s ease, stroke .2s ease;
+    }
+    .gauge .center{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; pointer-events:none; }
+    .gauge .center .big{ font-weight:800; font-size:13px; letter-spacing:.2px; }
+    .gauge .center .sub{ font-size:8px; color:#9ca3af; margin-top:1px; }
+
+    /* Right-side vertical widget dock over the video */
+    .right-dock{ position:absolute; top:0; right:0; bottom:0; width:280px; max-width:35%; padding:.5rem; display:flex; flex-direction:column; gap:.5rem; z-index:3; pointer-events:none; }
+    .right-dock .dock-panel{ pointer-events:auto; background:rgba(17,24,39,.72); border:1px solid rgba(55,65,81,.8); border-radius:.5rem; box-shadow:0 4px 10px rgba(0,0,0,.35); backdrop-filter:saturate(120%) blur(3px); -webkit-backdrop-filter:saturate(120%) blur(3px); display:flex; flex-direction:column; min-height:120px; overflow:auto; }
+    .right-dock .dock-panel h3{ font-size:.9rem; font-weight:700; padding:.5rem .6rem; border-bottom:1px solid rgba(55,65,81,.6); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border-top-left-radius:.5rem; border-top-right-radius:.5rem; }
+    .right-dock .dock-panel .dock-body{ padding:.5rem .6rem; font-size:.8rem; color:#9ca3af; }
+    @media (max-width: 1280px){ .right-dock{ display:none; } }
+
+    /* Side-by-side row for video + right dock (no overlap) */
+    .video-row{ display:flex; align-items:stretch; width:100%; height:100%; }
+    .video-pane{ position:relative; flex:1 1 auto; min-width:0; display:flex; align-items:center; justify-content:center; }
+    .dock-static{ flex:0 0 280px; max-width:35%; height:100%; padding:.5rem; display:flex; flex-direction:column; gap:.5rem; z-index:1; }
+    .dock-static .dock-panel{ background:rgba(17,24,39,.72); border:1px solid rgba(55,65,81,.8); border-radius:.5rem; box-shadow:0 4px 10px rgba(0,0,0,.35); backdrop-filter:saturate(120%) blur(3px); -webkit-backdrop-filter:saturate(120%) blur(3px); display:flex; flex-direction:column; min-height:120px; overflow:auto; }
+    .dock-static .dock-panel h3{ font-size:.9rem; font-weight:700; padding:.5rem .6rem; border-bottom:1px solid rgba(55,65,81,.6); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border-top-left-radius:.5rem; border-top-right-radius:.5rem; }
+    .dock-static .dock-panel .dock-body{ padding:.5rem .6rem; font-size:.8rem; color:#9ca3af; overflow:hidden; }
+
+    /* Collapsible dock panels */
+    .dock-static .dock-panel h3{ display:flex; align-items:center; justify-content:space-between; }
+    .dock-toggle{ appearance:none; border:1px solid rgba(148,163,184,.35); background:rgba(0,0,0,.2); color:#e5e7eb; border-radius:.375rem; padding:.15rem .35rem; font-size:.75rem; line-height:1; cursor:pointer; }
+    .dock-toggle:focus-visible{ outline:2px solid #60a5fa; outline-offset:2px; }
+    .dock-panel.collapsed .dock-body{ display:none; }
+    .dock-panel.collapsed h3 .chev{ transform:rotate(-90deg); }
+
+    /* Dock resizer between video and dock */
+    .dock-resizer{ flex:0 0 6px; cursor:col-resize; background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border-left:1px solid rgba(255,255,255,.08); border-right:1px solid rgba(0,0,0,.35); position:relative; }
+    .dock-resizer::after{ content:""; position:absolute; left:50%; top:50%; width:2px; height:28px; transform:translate(-50%,-50%); background:rgba(148,163,184,.35); border-radius:2px; }
+    .dock-resizer:hover::after{ background:rgba(148,163,184,.6); }
+    @media (max-width: 1280px){ .dock-static{ display:none; } }
+
+    /* Docked Stitcher sizing */
+    .dock-panel .stitch-docked .stitch-bar{ height:12px; }
+    .dock-panel .stitch-docked .stitch-ind{ top:-5px; }
+    .dock-panel .stitch-docked .stitch-scale{ font-size:10px; }
+    .dock-panel .stitch-docked .mt-2{ margin-top:.4rem !important; }
+
+    /* Dock visibility toggle (hide dock + resizer) */
+    .dock-hidden #right-dock{ display:none !important; }
+    .dock-hidden #dock-resizer{ display:none !important; }
+
+    /* Topbar dock controls */
+    .topbar-controls{ display:flex; gap:.35rem; align-items:center; }
+    .btn-ghost{ border:1px solid rgba(148,163,184,.3); background:rgba(0,0,0,.25); color:#e5e7eb; border-radius:.375rem; font-size:.75rem; padding:.2rem .5rem; }
+    .btn-ghost:focus-visible{ outline:2px solid #60a5fa; outline-offset:2px; }
+    .btn-ghost .kbd{ font-size:.65em; opacity:.8; margin-left:.25rem; }
+
+    /* --- Drag & snap for widgets --- */
+    .dragging{ opacity:.92; box-shadow:0 12px 30px rgba(0,0,0,.45) !important; }
+    .dock-placeholder{ height:120px; border:1px dashed rgba(148,163,184,.45); border-radius:.5rem; margin:.25rem 0; }
+    .floating-panel{ position:absolute !important; width:280px; max-width:40vw; z-index:200; cursor:move; }
+    .floating-panel h3{ cursor:move; }
+    #main{ position:relative; }
+  </style>
+</head>
+<body class="compact">
+  <div class="app-grid">
+    <!-- TOP BAR -->
+    <header id="topbar" class="widget !flex-row !items-center !justify-between gap-2 top-compact">
+      <div class="flex items-center gap-3 relative">
+        <button id="app-menu-btn" type="button" class="w-8 h-8 rounded-lg bg-yellow-400/90 flex items-center justify-center text-black font-extrabold shadow focus:outline-none" aria-haspopup="true" aria-expanded="false" title="Display options">A</button>
+        <div id="app-menu" class="appmenu" role="menu" aria-label="Display options">
+          <h4>Display</h4>
+          <div class="row"><label for="chk-dock">Right Dock</label><input id="chk-dock" type="checkbox" checked></div>
+          <div class="row"><label for="chk-panel-stitcher">Stitcher Panel</label><input id="chk-panel-stitcher" type="checkbox" checked></div>
+          <div class="row"><label for="chk-panel-aux">Controls Panel</label><input id="chk-panel-aux" type="checkbox" checked></div>
+          <div class="row"><label for="chk-panel-power">Battery Panel</label><input id="chk-panel-power" type="checkbox" checked></div>
+          <div class="row"><label for="chk-compass">Compass Ribbon</label><input id="chk-compass" type="checkbox" checked></div>
+          <div class="row"><label for="chk-depth">Depth Ribbon</label><input id="chk-depth" type="checkbox" checked></div>
+          <div class="row"><label for="chk-infobar">Bottom Info Bar</label><input id="chk-infobar" type="checkbox" checked></div>
+          <div class="row"><label for="chk-reticle">Center Reticle</label><input id="chk-reticle" type="checkbox" checked></div>
+        </div>
+        <div>
+          <div class="text-sm text-gray-400">Platform</div>
+          <div class="text-base font-semibold">APAMA ROV Console</div>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span id="status-text" class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs flex items-center gap-2 text-green-400">
+          <span id="status-indicator" class="status-indicator-dot bg-green-400 pulse-anim"></span> ARMED
+        </span>
+        <span id="mode-pill" class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs text-gray-200">STABILIZE</span>
+        <span class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs text-gray-200">Uptime <span id="uptime-value" class="font-semibold ml-1 num">00:00:00</span></span>
+        <span class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs flex items-center gap-2">
+          <svg width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M1 9h2V7H1v2Zm3 0h2V5H4v4Zm3 0h2V3H7v6Zm3 0h2V1h-2v8Zm3 0h2V4h-2v5Z" fill="#9ca3af"/></svg>
+          <span id="link-quality-value" class="text-gray-200 num">Link 96%</span>
+        </span>
+        <div class="topbar-controls">
+          <button id="btn-hide-dock" class="btn-ghost" type="button" aria-pressed="false" title="Hide/Show right dock">Hide Dock</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN -->
+    <main id="main" class="video-wrap">
+      <div class="video-row">
+        <div class="video-pane">
+          <div id="video-container" class="video-canvas">
+            <video id="video-el" class="video-el" src="./rov.mp4" autoplay muted loop playsinline webkit-playsinline aria-label="ROV video feed"></video>
+          </div>
+
+          <!-- HUD Overlay -->
+          <div class="hud">
+            <div class="rec-badge" id="rec-badge">REC <span id="rec-dot" class="inline-block w-2 h-2 rounded-full bg-red-500"></span></div>
+            <div class="compass-ribbon" id="compass-ribbon">
+              <div class="compass-track" id="compass-track"></div>
+              <div class="compass-center"></div>
+            </div>
+            <!-- Vertical Depth Ribbon -->
+            <div class="depth-ribbon" id="depth-ribbon" aria-label="Depth scale">
+              <div class="depth-track" id="depth-track"></div>
+              <div class="depth-center"></div>
+              <div class="depth-readout" id="depth-readout">
+                <span id="depth-number" class="depth-number">12.5</span>
+                <span class="depth-unit">m</span>
+              </div>
+            </div>
+            <div class="reticle" aria-hidden="true"></div>
+          </div>
+
+          <!-- Bottom video info bar: Depth + Water Temp -->
+          <div class="video-infobar" aria-label="Depth and water temperature">
+            <div class="row"><span class="lbl">Depth</span><span id="depth-value" class="val num">12.5 m</span></div>
+            <div class="row"><span class="lbl">Water</span><span id="water-temp-value" class="val num">18.2°C</span></div>
+          </div>
+
+          <button id="video-play-btn" type="button" aria-label="Play video" class="video-play-btn">Play</button>
+          <input id="video-file" type="file" accept="video/*" style="display:none">
+          <button id="video-load-btn" type="button" aria-label="Load video" class="video-load-btn">Load</button>
+
+          <!-- Placeholder when no video -->
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
+            <div id="video-status" class="text-center">
+              <h2 class="text-2xl font-bold text-gray-500">VIDEO FEED OFFLINE</h2>
+              <p class="text-gray-500">Awaiting connection…</p>
+            </div>
+          </div>
+        </div>
+        <div id="dock-resizer" class="dock-resizer" role="separator" aria-orientation="vertical" aria-label="Resize right dock" tabindex="0"></div>
+
+        <!-- Right-side vertical widget: Stitcher -->
+        <aside class="dock-static" id="right-dock">
+          <div id="panel-stitcher" data-panel-id="panel-stitcher" class="dock-panel" aria-label="Right-side widget dock">
+            <h3>Net Repair
+            </h3>
+            <div class="dock-body">
+              <section id="stitcher-widget" class="stitch-docked">
+                <div class="flex items-center justify-between mb-2">
+                  <div>
+                    <div class="text-[10px] text-gray-500 mt-0.5 flex items-center gap-1.5">
+                      <span>Staples: <span id="staple-count" class="num staples-badge">100</span></span>
+                      <button id="staple-reset" type="button" class="seg-btn" aria-label="Reset staples to 100">Reset</button>
+                    </div>
+                  </div>
+                  <div id="stitch-state" class="pill text-gray-200">State: <span id="stitch-state-text" class="font-semibold text-green-300">READY</span></div>
+                </div>
+                <div class="stitch-wrap">
+                  <div class="stitch-scale">
+                    <span class="end">RELOAD</span>
+                    <span class="text-xs text-gray-400">Stitcher Position</span>
+                    <span class="end">CRIMP</span>
+                  </div>
+                  <div class="stitch-bar" id="stitch-bar">
+                    <div class="stitch-zone" id="stitch-zone"></div>
+                    <div class="stitch-ind" id="stitch-ind"></div>
+                  </div>
+                  <div class="mt-2 flex items-center gap-3">
+                    <label for="crimp-force" class="w-28 text-xs text-gray-400 select-none">Crimp force</label>
+                    <input id="crimp-force" type="range" min="0" max="100" step="1" value="50" class="w-full">
+                    <span class="pill">Set: <span id="crimp-force-value" class="font-semibold num">50%</span></span>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+          <!-- Aux Systems panel (separate window) -->
+          <div id="panel-aux" data-panel-id="panel-aux" class="dock-panel" aria-label="Right-side widget dock - Aux Systems">
+            <h3>Controls</h3>
+            <div class="dock-body">
+              <section id="aux-widget" class="flex flex-col gap-1.5 aux-compact">
+                <div class="aux-grid grid grid-cols-1 gap-x-3 gap-y-1.5 items-start">
+                  <!-- Light brightness (short slider) -->
+                  <div class="aux-cell">
+                    <div class="flex items-center justify-between mb-1">
+                      <label for="light-brightness" class="text-xs text-gray-400">Light</label>
+                      <span class="pill">BRT <span id="light-brightness-value" class="ml-1 font-semibold num">35%</span></span>
+                    </div>
+                    <input id="light-brightness" type="range" min="0" max="100" step="1" value="35" class="w-full max-w-[160px]" title="Light brightness">
+                  </div>
+                  <!-- Gain (short slider) -->
+                  <div class="aux-cell">
+                    <div class="flex items-center justify-between mb-1">
+                      <label for="rov-gain" class="text-xs text-gray-400">Gain</label>
+                      <span class="pill">Gain <span id="rov-gain-value" class="ml-1 font-semibold num">50%</span></span>
+                    </div>
+                    <input id="rov-gain" type="range" min="0" max="100" step="1" value="50" class="w-full max-w-[160px]" title="ROV gain">
+                  </div>
+                  <!-- Camera Tilt (short slider) -->
+                  <div class="aux-cell">
+                    <div class="flex items-center justify-between mb-1">
+                      <label for="cam-tilt" class="text-xs text-gray-400">Camera Tilt</label>
+                      <span class="pill">Tilt <span id="cam-tilt-value" class="ml-1 font-semibold num">0°</span></span>
+                    </div>
+                    <input id="cam-tilt" type="range" min="-90" max="90" step="1" value="0" class="w-full max-w-[160px]" title="Camera tilt">
+                  </div>
+                  <!-- Manipulator state (full width) -->
+                  <div class="aux-cell">
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-xs text-gray-400">Manipulator</span>
+                      <span id="manip-state" class="pill text-slate-200">State: <span id="manip-state-text" class="font-semibold text-slate-200">STOPPED</span></span>
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                      <button id="manip-open"  type="button" class="seg-btn" aria-pressed="false">Open</button>
+                      <button id="manip-close" type="button" class="seg-btn" aria-pressed="false">Close</button>
+                      <button id="manip-stop"  type="button" class="seg-btn" aria-pressed="true">Stop</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+          <!-- Power panel (moved from footer) -->
+          <div id="panel-power" data-panel-id="panel-power" class="dock-panel" aria-label="Right-side widget dock - Power">
+            <h3>Battery Status</h3>
+            <div class="dock-body">
+              <section id="power-widget" class="flex flex-col gap-1.5">
+                <div class="flex items-center justify-between">
+                  <div id="battery-state-message" class="pill text-gray-200">State: <span id="battery-state-text" class="font-semibold text-green-300">OK</span></div>
+                </div>
+                <div class="flex items-center justify-evenly gap-3 flex-nowrap">
+                  <!-- Voltage -->
+                  <div class="gcol flex flex-col items-center">
+                    <div class="gauge" aria-label="Battery voltage" id="voltage-meter">
+                      <svg viewBox="0 0 120 120" aria-hidden="true">
+                        <circle id="voltage-track" class="track" cx="60" cy="60" r="50"></circle>
+                        <circle id="voltage-arc" class="arc" cx="60" cy="60" r="50" stroke-dasharray="314" stroke-dashoffset="0"></circle>
+                      </svg>
+                      <div class="center">
+                        <div class="big num" id="voltage-value">16.80V</div>
+                        <div class="sub">VOLTS</div>
+                      </div>
+                    </div>
+                    <!-- Hidden legacy bar to satisfy existing JS refs -->
+                    <div id="voltage-bar" style="display:none"></div>
+                  </div>
+
+                  <!-- Battery Temp -->
+                  <div class="gcol flex flex-col items-center">
+                    <div class="gauge" aria-label="Battery temperature" id="temp-meter">
+                      <svg viewBox="0 0 120 120" aria-hidden="true">
+                        <circle id="temp-track" class="track" cx="60" cy="60" r="50"></circle>
+                        <circle id="temp-arc" class="arc" cx="60" cy="60" r="50" stroke-dasharray="314" stroke-dashoffset="0"></circle>
+                      </svg>
+                      <div class="center">
+                        <div class="big num" id="temp-value">24.5°C</div>
+                        <div class="sub">TEMP</div>
+                      </div>
+                    </div>
+                    <!-- Hidden legacy bar to satisfy existing JS refs -->
+                    <div id="temp-bar" style="display:none"></div>
+                  </div>
+                </div>
+                <!-- Power (bidirectional bar under gauges) -->
+                <div class="mt-2">
+                  <div class="flex justify-between items-baseline mb-0.5">
+                    <span class="text-xs font-medium text-gray-400">Power</span>
+                    <span id="current-value" aria-live="polite" class="text-sm font-semibold num">0W</span>
+                  </div>
+                  <div id="current-meter" role="meter" aria-label="Battery power" aria-valuemin="-470.4" aria-valuemax="2184" aria-valuenow="0" aria-valuetext="0 watts" class="relative w-full progress-bar-bg rounded-full h-1 overflow-hidden border border-gray-700">
+                    <div id="current-charge-fill" class="absolute top-0 bottom-0" style="right:50%; width:0%; background:#10b981;"></div>
+                    <div id="current-draw-fill"   class="absolute top-0 bottom-0" style="left:50%;  width:0%; background:#ef4444;"></div>
+                    <div class="absolute top-0 bottom-0 left-1/2 w-0.5 bg-gray-300"></div>
+                    <div class="absolute left-1 text-[9px] text-gray-400 font-medium">Charge</div>
+                    <div class="absolute right-1 text-[9px] text-gray-400 font-medium">Draw</div>
+                  </div>
+                </div>
+
+                </div>
+              </section>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <!-- SYSTEMS BAR -->
+    <footer id="sysbar" class="widget !flex-row !items-stretch gap-3 flex-wrap md:flex-nowrap">
+      <!-- Power/Battery widget @ full width (Aux moved to dock) -->
+
+
+
+    </footer>
+  </div>
+
+  <script>
+  'use strict';
+  document.addEventListener('DOMContentLoaded', function(){
+    // Safe console wrapper
+    const c=(function(){ const noop=()=>{}; const base=(typeof window!=='undefined'&&window.console)?window.console:{log:noop,warn:noop,error:noop,group:noop,groupEnd:noop}; if(!base.assert){ base.assert=(cond,...args)=>{ if(!cond){ base.error('Assertion failed:',...args);} else { base.log('✓',...args);} }; } return base; })();
+
+    // --- DOM refs ---
+    const depthRibbon = document.getElementById('depth-ribbon');
+    const depthTrack  = document.getElementById('depth-track');
+    const depthReadout = document.getElementById('depth-readout');
+    const depthNumber = document.getElementById('depth-number');
+    const voltageBar = document.getElementById('voltage-bar');
+    const voltageValue = document.getElementById('voltage-value');
+    const currentChargeFill = document.getElementById('current-charge-fill');
+    const currentDrawFill = document.getElementById('current-draw-fill');
+    const currentValue = document.getElementById('current-value');
+    const tempBar = document.getElementById('temp-bar');
+    const tempValue = document.getElementById('temp-value');
+    const statusText = document.getElementById('status-text');
+    const batteryStateMessage = document.getElementById('battery-state-message');
+    const batteryStateText = document.getElementById('battery-state-text');
+    const uptimeValue = document.getElementById('uptime-value');
+    const depthValue = document.getElementById('depth-value');
+    const waterTempValue = document.getElementById('water-temp-value');
+    const linkQualityValue = document.getElementById('link-quality-value');
+    const modePill = document.getElementById('mode-pill');
+    const compassRibbon = document.getElementById('compass-ribbon');
+    const compassTrack = document.getElementById('compass-track');
+    const videoEl = document.getElementById('video-el');
+    const videoStatus = document.getElementById('video-status');
+    const videoPlayBtn = document.getElementById('video-play-btn');
+    const videoLoadBtn = document.getElementById('video-load-btn');
+    const videoFile = document.getElementById('video-file');
+    // Stitcher DOM
+    const stitchBar = document.getElementById('stitch-bar');
+    const stitchInd = document.getElementById('stitch-ind');
+    const stitchStateText = document.getElementById('stitch-state-text');
+    const stitchStatePill = document.getElementById('stitch-state');
+    const stapleCountEl = document.getElementById('staple-count');
+    const stapleResetBtn = document.getElementById('staple-reset');
+    // Crimp Force control
+    const crimpSlider = document.getElementById('crimp-force');
+    const crimpForceValue = document.getElementById('crimp-force-value');
+    // Aux Systems DOM
+    const lightSlider = document.getElementById('light-brightness');
+    const lightValue = document.getElementById('light-brightness-value');
+    const manipStateText = document.getElementById('manip-state-text');
+    const manipStatePill = document.getElementById('manip-state');
+    const manipOpenBtn = document.getElementById('manip-open');
+    const manipCloseBtn = document.getElementById('manip-close');
+    const manipStopBtn = document.getElementById('manip-stop');
+    const camTiltSlider = document.getElementById('cam-tilt');
+    const camTiltValue = document.getElementById('cam-tilt-value');
+    // New Gain controls
+    const rovGainSlider = document.getElementById('rov-gain');
+    const rovGainValue = document.getElementById('rov-gain-value');
+
+    // App menu DOM
+    const appMenuBtn = document.getElementById('app-menu-btn');
+    const appMenu    = document.getElementById('app-menu');
+    const chkDock    = document.getElementById('chk-dock');
+    const chkPanelSt = document.getElementById('chk-panel-stitcher');
+    const chkPanelAx = document.getElementById('chk-panel-aux');
+    const chkPanelPw = document.getElementById('chk-panel-power');
+    const chkCompass = document.getElementById('chk-compass');
+    const chkDepth   = document.getElementById('chk-depth');
+    const chkInfobar = document.getElementById('chk-infobar');
+    const chkReticle = document.getElementById('chk-reticle');
+    // --- Menu state helpers ---
+    const setLS=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(_){ } };
+    const getLS=(k,def)=>{ try{ const v=localStorage.getItem(k); return v===null? def : v; }catch(_){ return def; } };
+
+    function applyVisibility(){
+      const showDock = getLS('uiShow_dock','1')==='1';
+      document.body.classList.toggle('dock-hidden', !showDock);
+      if (chkDock) chkDock.checked = showDock;
+
+      const stitchPanel = document.getElementById('panel-stitcher');
+      const auxPanel    = document.getElementById('panel-aux');
+      const powerPanel  = document.getElementById('panel-power');
+      const setHidden=(el,key)=>{ if(!el) return; const on = getLS(key,'1')==='1'; el.classList.toggle('hidden', !on); const chkMap={ 'uiShow_panel_stitcher':chkPanelSt, 'uiShow_panel_aux':chkPanelAx, 'uiShow_panel_power':chkPanelPw }; const chk=chkMap[key]; if(chk) chk.checked=on; };
+      setHidden(stitchPanel,'uiShow_panel_stitcher');
+      setHidden(auxPanel,'uiShow_panel_aux');
+      setHidden(powerPanel,'uiShow_panel_power');
+
+      const compass = document.getElementById('compass-ribbon');
+      const depth   = document.getElementById('depth-ribbon');
+      const infobar = document.querySelector('.video-infobar');
+      const reticle = document.querySelector('.reticle');
+      const setOnOff=(el,key)=>{ if(!el) return; const on=getLS(key,'1')==='1'; el.classList.toggle('hidden', !on); const map={ 'uiShow_compass':chkCompass, 'uiShow_depth':chkDepth, 'uiShow_infobar':chkInfobar, 'uiShow_reticle':chkReticle }; const chk=map[key]; if(chk) chk.checked=on; };
+      setOnOff(compass,'uiShow_compass');
+      setOnOff(depth,'uiShow_depth');
+      setOnOff(infobar,'uiShow_infobar');
+      setOnOff(reticle,'uiShow_reticle');
+    }
+
+    // Apply visibility immediately from current checkbox states (no LS dependency)
+    function applyVisibilityFromUI(){
+      // Right dock
+      if (chkDock) {
+        document.body.classList.toggle('dock-hidden', !chkDock.checked);
+      }
+      // Panels
+  // Use only the 'hidden' utility class so inline styles do not later override user intent.
+  const setDisp = (el, on) => { if(!el) return; el.classList.toggle('hidden', !on); };
+      setDisp(document.getElementById('panel-stitcher'), chkPanelSt ? chkPanelSt.checked : true);
+      setDisp(document.getElementById('panel-aux'),       chkPanelAx ? chkPanelAx.checked : true);
+      setDisp(document.getElementById('panel-power'),     chkPanelPw ? chkPanelPw.checked : true);
+      // HUD
+      setDisp(document.getElementById('compass-ribbon'),  chkCompass ? chkCompass.checked : true);
+      setDisp(document.getElementById('depth-ribbon'),    chkDepth ? chkDepth.checked : true);
+  setDisp(document.querySelector('.video-infobar'),    chkInfobar ? chkInfobar.checked : true);
+      setDisp(document.querySelector('.reticle'),         chkReticle ? chkReticle.checked : true);
+    }
+
+    function bindMenu(){
+      if(!appMenuBtn || !appMenu) return;
+      appMenuBtn.addEventListener('click', ()=>{
+        const open = !appMenu.classList.contains('open');
+        appMenu.classList.toggle('open', open);
+        appMenuBtn.setAttribute('aria-expanded', open? 'true':'false');
+      });
+      document.addEventListener('click', (e)=>{
+        if(!appMenu.classList.contains('open')) return;
+        const within = appMenu.contains(e.target) || appMenuBtn.contains(e.target);
+        if(!within){ appMenu.classList.remove('open'); appMenuBtn.setAttribute('aria-expanded','false'); }
+      });
+      document.addEventListener('keydown', (e)=>{
+        if(e.key==='Escape' && appMenu.classList.contains('open')){ appMenu.classList.remove('open'); appMenuBtn.setAttribute('aria-expanded','false'); }
+      });
+
+      const wire=(chk,key)=>{ if(!chk) return; chk.addEventListener('change', ()=>{ applyVisibilityFromUI(); setLS(key, chk.checked?'1':'0'); }); };
+      wire(chkDock,'uiShow_dock');
+      wire(chkPanelSt,'uiShow_panel_stitcher');
+      wire(chkPanelAx,'uiShow_panel_aux');
+      wire(chkPanelPw,'uiShow_panel_power');
+      wire(chkCompass,'uiShow_compass');
+      wire(chkDepth,'uiShow_depth');
+      wire(chkInfobar,'uiShow_infobar');
+      wire(chkReticle,'uiShow_reticle');
+
+      // Apply immediate UI state (checkboxes), then reconcile with persisted values
+      applyVisibilityFromUI();
+      applyVisibility();
+    }
+
+    // Always-active Staple Reset button
+    if (stapleResetBtn){
+      stapleResetBtn.addEventListener('click', ()=>{
+        sim.stapleCount = 100;
+        if (stapleCountEl){
+          stapleCountEl.textContent = '100';
+          // retrigger flash animation
+          stapleCountEl.classList.remove('staples-flash');
+          void stapleCountEl.offsetWidth;
+          stapleCountEl.classList.add('staples-flash');
+        }
+      });
+    }
+    // Dock & panels
+    const rightDock = document.getElementById('right-dock');
+    const dockResizer = document.getElementById('dock-resizer');
+    const btnHideDock = document.getElementById('btn-hide-dock');
+
+    // Meters for a11y
+    const voltageMeter = document.getElementById('voltage-meter');
+    const currentMeter = document.getElementById('current-meter');
+    const tempMeter    = document.getElementById('temp-meter');
+
+    // Guard nodes
+    const must=[["voltageBar",voltageBar],["voltageValue",voltageValue],["currentChargeFill",currentChargeFill],["currentDrawFill",currentDrawFill],["currentValue",currentValue],["tempBar",tempBar],["tempValue",tempValue],["statusText",statusText],["batteryStateMessage",batteryStateMessage],["batteryStateText",batteryStateText],["uptimeValue",uptimeValue],["depthValue",depthValue],["waterTempValue",waterTempValue],["linkQualityValue",linkQualityValue],["modePill",modePill],["compassRibbon",compassRibbon],["compassTrack",compassTrack],["stitchBar",stitchBar],["stitchInd",stitchInd],["stitchStateText",stitchStateText],["stitchStatePill",stitchStatePill],["stapleCountEl",stapleCountEl],["stapleResetBtn",stapleResetBtn],["crimpSlider",crimpSlider],["crimpForceValue",crimpForceValue],["lightSlider",lightSlider],["lightValue",lightValue],["manipStateText",manipStateText],["manipStatePill",manipStatePill],["manipOpenBtn",manipOpenBtn],["manipCloseBtn",manipCloseBtn],["manipStopBtn",manipStopBtn],["camTiltSlider",camTiltSlider],["camTiltValue",camTiltValue],["rovGainSlider",rovGainSlider],["rovGainValue",rovGainValue]];
+    must.forEach(([n,node])=>{ if(!node){ c.error('Missing DOM node for',n);} });
+
+    // Ranges / constants
+    const MAX_VOLTAGE=16.8, MIN_VOLTAGE=13.2;
+    const MAX_DISCHARGE_CURRENT=130.0, MAX_CHARGE_CURRENT=28.0;
+    const NORMAL_TEMP_LIMIT=50.0, WARNING_TEMP_LIMIT=58.0, MAX_TEMP=60.0;
+
+    // --- Stitcher configuration ---
+    const STROKE_MM = 120;                 // total actuator travel
+    const COUNTS_PER_MM = 40;              // encoder counts per mm
+    const MAX_COUNTS = STROKE_MM * COUNTS_PER_MM; // single source of truth
+
+    // Uptime utils
+    const start=Date.now(); const formatUptime=ms=>{ const s=Math.floor(ms/1000); const h=String(Math.floor(s/3600)).padStart(2,'0'); const m=String(Math.floor((s%3600)/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${h}:${m}:${ss}`; };
+
+    // Modes (cosmetic)
+    const modes=['STABILIZE','DEPTH HOLD','AUTO-HEADING','MANUAL']; let modeIdx=0;
+
+    // Compass build
+    // --- Depth ribbon (vertical, scrolling) ---
+    const DEPTH_PX_PER_M = 6; // 6px per meter
+    const DEPTH_MAX_M = 1000; // build generous range 0..1000m
+    function buildDepthRibbon(){
+      if(!depthTrack) return;
+      depthTrack.innerHTML='';
+      const frag = document.createDocumentFragment();
+      // Build from 0 to DEPTH_MAX_M (bottom -> top). We render extra buffer above and below.
+      for(let m=0; m<=DEPTH_MAX_M; m++){
+        const row = document.createElement('div');
+        row.className = 'depth-tick m1';
+        if(m%10===0) row.className='depth-tick m10'; else if(m%5===0) row.className='depth-tick m5';
+        row.style.height = DEPTH_PX_PER_M + 'px';
+        const line = document.createElement('div'); line.className='line'; row.appendChild(line);
+        if(m%5===0){ const lbl=document.createElement('div'); lbl.className='lbl'; lbl.textContent=String(m); row.appendChild(lbl); }
+        frag.appendChild(row);
+      }
+      depthTrack.appendChild(frag);
+      depthTrack.style.top = '0px';
+      depthTrack.style.transition = 'transform 180ms cubic-bezier(0.2,0.65,0.3,1)';
+      // Add a fixed danger line at 300 m (scrolls with the tape)
+      const danger = document.createElement('div');
+      danger.className = 'depth-danger';
+      danger.style.top = (300 * DEPTH_PX_PER_M - 1) + 'px';
+      depthTrack.appendChild(danger);
+    }
+
+    function setDepthRibbon(depthMeters){
+      if(!depthRibbon || !depthTrack || !depthReadout) return;
+      const h = depthRibbon.clientHeight || 300;
+      const center = h/2; // center of window
+      const posPx = depthMeters * DEPTH_PX_PER_M; // pixels from top (0m at top)
+      // We want the tick for the current depth to align with center line.
+      const translateY = -(posPx - center);
+      depthTrack.style.transform = `translateY(${translateY}px)`;
+      // Update stacked readout text (number + unit)
+      if (depthNumber) depthNumber.textContent = depthMeters.toFixed(1);
+      // Smooth color fade: 0..250m = white; 250..300m = white->orange->red; >=300m = red
+      const clamp = (v,min,max)=> Math.max(min, Math.min(max, v));
+      const lerp = (a,b,t)=> a + (b-a)*t;
+      const lerpColor = (c1,c2,t)=>{ // colors as [r,g,b]
+        const r = Math.round(lerp(c1[0],c2[0],t));
+        const g = Math.round(lerp(c1[1],c2[1],t));
+        const b = Math.round(lerp(c1[2],c2[2],t));
+        return `rgb(${r}, ${g}, ${b})`;
+      };
+      const WHITE=[229,231,235], ORANGE=[245,158,11], RED=[239,68,68];
+      let col = 'rgb(229,231,235)';
+      if (depthMeters < 250){
+        col = 'rgb(229,231,235)';
+        depthReadout.classList.remove('red');
+      } else if (depthMeters < 275){
+        const t = clamp((depthMeters-250)/25,0,1); // 250->275
+        col = lerpColor(WHITE, ORANGE, t);
+        depthReadout.classList.remove('red');
+      } else if (depthMeters < 300){
+        const t = clamp((depthMeters-275)/25,0,1); // 275->300
+        col = lerpColor(ORANGE, RED, t);
+        depthReadout.classList.remove('red');
+      } else {
+        col = 'rgb(239,68,68)';
+        depthReadout.classList.add('red');
+      }
+      depthReadout.style.color = col;
+    }
+    function buildCompass(){
+      if(!compassRibbon || !compassTrack) return;
+      compassTrack.innerHTML='';
+      const frag=document.createDocumentFragment();
+      const PX_PER_DEG=3; window.COMPASS_PX_PER_DEG=PX_PER_DEG;
+      for(let deg=0; deg<=720; deg++){
+        const slot=document.createElement('div'); slot.style.flex=`0 0 ${PX_PER_DEG}px`; slot.style.height='100%'; slot.style.position='relative'; slot.style.pointerEvents='none';
+        if(deg%5===0){ const d360=deg%360; const line=document.createElement('div'); line.style.position='absolute'; line.style.left='50%'; line.style.transform='translateX(-50%)'; line.style.bottom='0'; let h=8,op=.5; if(deg%10===0){h=14;op=.75;} if((d360%30===0)||(d360%45===0)||(d360%90===0)){h=20;op=.9;} line.style.width='1px'; line.style.height=`${h}px`; line.style.background='rgba(255,255,255,.85)'; line.style.opacity=op; if(d360%90===0){ line.style.height='26px'; line.style.width='3px'; line.style.opacity='1'; line.style.background='#ffffff'; line.style.boxShadow='0 0 6px rgba(255,255,255,.6), 0 0 2px rgba(0,0,0,.8)'; } else if(d360%45===0){ line.style.height='22px'; line.style.width='2px'; line.style.opacity='0.95'; line.style.background='#e5e7eb'; line.style.boxShadow='0 0 4px rgba(229,231,235,.55)'; } slot.appendChild(line);
+          const label=document.createElement('div'); label.className='compass-label'; label.style.position='absolute'; label.style.bottom='12px'; label.style.left='50%'; label.style.transform='translateX(-50%)'; if(d360%90===0){ const L=['N','E','S','W'][(d360/90)%4]; label.textContent=L; label.classList.add('cardinal'); label.dataset.type='cardinal'; label.dataset.deg=String(d360); if(L==='N') label.classList.add('north'); } else if(d360%45===0){ const map={45:'NE',135:'SE',225:'SW',315:'NW'}; label.textContent=map[d360]||''; label.classList.add('intercardinal'); label.dataset.type='intercardinal'; label.dataset.deg=String(d360); } else if(d360%15===0){ label.textContent=String(d360); label.dataset.type='numeric'; label.dataset.deg=String(d360); } if(label.textContent) slot.appendChild(label);
+        }
+        frag.appendChild(slot);
+      }
+      compassTrack.appendChild(frag);
+      compassTrack.style.transition='transform 180ms cubic-bezier(0.2,0.65,0.3,1)';
+    }
+
+    function setCompassHeading(h){
+      if(!compassRibbon || !compassTrack) return;
+      const width=compassRibbon.clientWidth||600; const pos=(h+360)*(window.COMPASS_PX_PER_DEG||3); const offset=width/2;
+      compassTrack.style.transform=`translateX(${-(pos-offset)}px)`;
+      // Numeric labels fade toward edges
+      const labels=compassTrack.querySelectorAll('.compass-label');
+      labels.forEach(el=>{ const type=el.dataset.type||''; const d=Number(el.dataset.deg); if(!Number.isFinite(d)) return; const diff=Math.abs((((d-h)+540)%360)-180); let op=1; if(type==='numeric'){ op=Math.max(0, 1-(diff/60)); } el.style.opacity=op.toFixed(2); });
+    }
+
+    // Power UI helper (Watts with bidirectional bar)
+    function setCurrentUI(amps){
+      const watts = sim.voltage * amps; // negative => charging, positive => draw
+      const MAX_DRAW_WATTS = MAX_DISCHARGE_CURRENT * MAX_VOLTAGE;
+      const MAX_CHARGE_WATTS = MAX_CHARGE_CURRENT * MAX_VOLTAGE;
+      // Update circular power gauge (zero at top)
+      (function(){
+        const arc = document.getElementById('power-arc');
+        const centerVal = document.getElementById('power-center-value');
+        const centerLab = document.getElementById('power-center-label');
+        if (!arc || !centerVal || !centerLab) return;
+
+        if (watts > 0){
+          const pct = Math.min(100, (watts / MAX_DRAW_WATTS) * 100);
+          setGaugeArc('power-arc', pct);
+          arc.style.stroke = '#ef4444'; // draw = red
+          centerVal.textContent = `${Math.round(watts)}W`;
+          centerLab.textContent = 'DIS';
+        } else if (watts < 0){
+          const w = Math.min(MAX_CHARGE_WATTS, Math.abs(watts));
+          const pct = (w / MAX_CHARGE_WATTS) * 100;
+          setGaugeArc('power-arc', pct);
+          arc.style.stroke = '#10b981'; // charge = green
+          centerVal.textContent = `${Math.round(Math.abs(watts))}W`;
+          centerLab.textContent = 'CHG';
+        } else {
+          setGaugeArc('power-arc', 0);
+          arc.style.stroke = '#94a3b8';
+          centerVal.textContent = '0W';
+          centerLab.textContent = 'DIS/CHG';
+        }
+      })();
+      currentChargeFill.style.width='0%';
+      currentDrawFill.style.width='0%';
+      if (watts > 0){
+        const pct = Math.min(100, (watts / MAX_DRAW_WATTS) * 100);
+        currentDrawFill.style.width = `${pct}%`;
+        currentValue.textContent = `DIS ${Math.round(watts)}W`;
+      } else if (watts < 0){
+        const w = Math.min(MAX_CHARGE_WATTS, Math.abs(watts));
+        const pct = (w / MAX_CHARGE_WATTS) * 100;
+        currentChargeFill.style.width = `${pct}%`;
+        currentValue.textContent = `CHG ${Math.round(Math.abs(watts))}W`;
+      } else {
+        currentValue.textContent = '0W';
+      }
+      if (currentMeter){
+        currentMeter.setAttribute('aria-valuenow', String(Math.round(watts)));
+        currentMeter.setAttribute('aria-valuetext', `${Math.round(Math.abs(watts))} watts ${watts>=0?'discharging':'charging'}`);
+      }
+    }
+
+    // --- Smooth Simulation (rAF + exponential smoothing) ---
+    const sim={
+      heading: Math.random()*360, yawRate: 0, targetYawRate: 0,
+      amps: 0, targetAmps: 0,
+      voltage: 16.6,
+      temp: 24.5,
+      depth: 12.5, targetDepth: 12.5,
+      waterTemp: 18.2, targetWaterTemp: 18.4,
+      link: 96, targetLink: 96,
+      // Aux
+      lightPct: 35,
+      manipState: 'STOPPED', // 'OPEN' | 'CLOSE' | 'STOPPED'
+      camTilt: 0, camTiltTarget: 0, // degrees
+      gainPct: 50, // new gain value
+      // Stitcher FSM
+      stitchCounts: 0,
+      stitchMode: 'READY',
+      stitchPhase: 'DWELL_RELOAD',
+      stitchPhaseUntil: performance.now() + 600,
+      stapleCount: 100,
+      lastT: performance.now(), retargetAt: performance.now()+1500
+    };
+
+    // Controls: crimp force
+    let crimpForceSet = crimpSlider ? parseInt(crimpSlider.value,10) : 50;
+    if (crimpSlider) {
+      crimpSlider.addEventListener('input', (e)=>{
+        const v = parseInt(e.target.value,10);
+        crimpForceSet = isNaN(v) ? crimpForceSet : v;
+        if (crimpForceValue) crimpForceValue.textContent = `${crimpForceSet}%`;
+      });
+    }
+
+    // Controls: light brightness
+    if (lightSlider) {
+      lightSlider.addEventListener('input', (e)=>{
+        const v = Math.max(0, Math.min(100, parseInt(e.target.value,10)||0));
+        sim.lightPct = v; // direct set
+        if (lightValue) lightValue.textContent = `${v}%`;
+      });
+    }
+
+    // Controls: manipulator state
+    function setManipState(s){
+      sim.manipState = s;
+      if (!manipStateText || !manipStatePill) return;
+      manipStateText.textContent = s;
+      let pillCls = 'pill ';
+      if (s==='OPEN') pillCls += 'border-sky-500/40 text-sky-300 bg-sky-500/10';
+      else if (s==='CLOSE') pillCls += 'border-amber-500/40 text-amber-300 bg-amber-500/10';
+      else pillCls += 'border-slate-500/40 text-slate-300 bg-slate-500/10';
+      manipStatePill.className = pillCls;
+      if (manipOpenBtn)  manipOpenBtn.setAttribute('aria-pressed', String(s==='OPEN'));
+      if (manipCloseBtn) manipCloseBtn.setAttribute('aria-pressed', String(s==='CLOSE'));
+      if (manipStopBtn)  manipStopBtn.setAttribute('aria-pressed', String(s==='STOPPED'));
+    }
+    manipOpenBtn && manipOpenBtn.addEventListener('click', ()=>setManipState('OPEN'));
+    manipCloseBtn && manipCloseBtn.addEventListener('click', ()=>setManipState('CLOSE'));
+    manipStopBtn && manipStopBtn.addEventListener('click', ()=>setManipState('STOPPED'));
+
+    // Controls: camera tilt
+    if (camTiltSlider) {
+      camTiltSlider.addEventListener('input', (e)=>{
+        const v = Math.max(-90, Math.min(90, parseInt(e.target.value,10)||0));
+        sim.camTiltTarget = v;
+        if (camTiltValue) camTiltValue.textContent = `${v}\u00B0`;
+      });
+    }
+
+    // Controls: Gain slider
+    if (rovGainSlider) {
+      rovGainSlider.addEventListener('input', (e)=>{
+        const v = Math.max(0, Math.min(100, parseInt(e.target.value,10)||0));
+        sim.gainPct = v;
+        if (rovGainValue) rovGainValue.textContent = `${v}%`;
+      });
+    }
+
+    // Helper maps
+    const lerpExp=(cur,target,dt,tau)=> cur + (target-cur)*(1-Math.exp(-dt/Math.max(0.001,tau)));
+    const wrap360=a=>{ a%=360; return a<0?a+360:a; };
+    // Circular gauge helpers (2/3 arc, flat/open side at bottom)
+    const GAUGE_CIRC = 2 * Math.PI * 50; // r=50 matches SVG circles
+    const ARC_FRACTION = 2/3;            // 240°
+    const ARC_LEN = GAUGE_CIRC * ARC_FRACTION;
+    const GAP_LEN = GAUGE_CIRC - ARC_LEN;
+    // Position the arc so the missing 120° is centered at bottom (180°).
+    // With arc rotated -90deg (top start), start the drawn arc at 240°.
+    const ARC_BASE_OFFSET = GAUGE_CIRC * (240/360);
+
+    function setGaugeArc(id, pct){
+      const el = document.getElementById(id);
+      if(!el) return;
+      const clamped = Math.max(0, Math.min(100, pct));
+      const filled = ARC_LEN * (clamped / 100);
+      const remainingArc = ARC_LEN - filled;
+      // Draw the filled part, then the remaining part of the 240° arc, then the fixed 120° gap
+      el.style.strokeDasharray = `${filled} ${remainingArc + GAP_LEN}`;
+      el.style.strokeDashoffset = String(ARC_BASE_OFFSET);
+    }
+
+    function initGaugeTrack(id){
+      const el = document.getElementById(id);
+      if(!el) return;
+      // Draw a fixed 2/3 ring with a gap centered at bottom
+      el.style.strokeDasharray = `${ARC_LEN} ${GAP_LEN}`;
+      el.style.strokeDashoffset = String(ARC_BASE_OFFSET);
+    }
+
+    // Initialize tracks for 2/3 arcs
+    initGaugeTrack('voltage-track');
+    initGaugeTrack('temp-track');
+
+    // Display smoothing state for infobar
+    let displayDepth = 12.5;
+    let displayWater = 18.2;
+
+    // Stitcher FSM parameters
+    const SPEED_COUNTS_PER_SEC = MAX_COUNTS / 2.6; // ~2.6s end-to-end travel
+    const DWELL_RELOAD_MS = 600;                   // pause at reload
+    const dwellCrimpMs = ()=> 250 + (crimpForceSet/100)*950; // 250–1200 ms based on set force
+
+    function advanceStitchFSM(dt, now){
+      switch(sim.stitchPhase){
+        case 'DWELL_RELOAD':
+          sim.stitchMode = 'READY';
+          if (now >= sim.stitchPhaseUntil){
+            sim.stitchPhase = 'MOVE_FWD';
+            sim.stitchMode = 'CRIMPING';
+          }
+          break;
+        case 'MOVE_FWD':{
+          sim.stitchMode = 'CRIMPING';
+          const delta = SPEED_COUNTS_PER_SEC * dt;
+          sim.stitchCounts = Math.min(MAX_COUNTS, sim.stitchCounts + delta);
+          if (sim.stitchCounts >= MAX_COUNTS){
+            sim.stitchCounts = MAX_COUNTS;
+            sim.stitchPhase = 'DWELL_CRIMP';
+            sim.stitchPhaseUntil = now + dwellCrimpMs();
+          }
+          break;}
+        case 'DWELL_CRIMP':
+          sim.stitchMode = 'CRIMPING';
+          if (now >= sim.stitchPhaseUntil){
+            // Crimp completed: decrement staple count
+            if (typeof sim.stapleCount === 'number' && sim.stapleCount > 0) {
+              sim.stapleCount -= 1;
+            }
+            sim.stitchPhase = 'MOVE_BACK';
+          }
+          break;
+        case 'MOVE_BACK':{
+          sim.stitchMode = 'CRIMPING';
+          const delta = SPEED_COUNTS_PER_SEC * dt;
+          sim.stitchCounts = Math.max(0, sim.stitchCounts - delta);
+          if (sim.stitchCounts <= 0){
+            sim.stitchCounts = 0;
+            sim.stitchPhase = 'DWELL_RELOAD';
+            sim.stitchPhaseUntil = now + DWELL_RELOAD_MS;
+          }
+          break;}
+      }
+    }
+
+    // Retarget inputs for smooth dynamics
+    function retarget(){
+      sim.targetYawRate = (Math.random()<0.4? (Math.random()*8-4) : (Math.random()*20-10));
+      sim.targetAmps = (Math.random()<0.15? (Math.random()*-6-2) : (Math.random()*80+10));
+      sim.targetDepth = Math.max(0, sim.depth + (Math.random()*1.2-0.6));
+      sim.targetWaterTemp = sim.waterTemp + (Math.random()*0.4-0.2);
+      sim.targetLink = Math.max(35, Math.min(100, sim.link + (Math.random()*12-6)));
+      sim.retargetAt = performance.now() + (1200 + Math.random()*1600);
+    }
+
+    function applyStatus(vPct){
+      const t = sim.temp;
+      const isFault = (t >= MAX_TEMP) || (vPct <= 25);
+      const isWarn  = !isFault && ((t >= NORMAL_TEMP_LIMIT) || (vPct <= 40));
+
+      // Top status badge (kept consistent with previous visuals)
+      let html = `<span class=\"status-indicator-dot bg-green-400 pulse-anim\"></span> ARMED`;
+      let textCls = 'text-green-400';
+      if (t >= MAX_TEMP) { html = `<span class=\"status-indicator-dot bg-red-500\"></span> TEMP CUT-OFF`; textCls = 'text-red-400'; }
+      else if (isWarn || isFault) { html = `<span class=\"status-indicator-dot bg-yellow-400 pulse-anim\"></span> WARNING`; textCls = 'text-yellow-300'; }
+      statusText.innerHTML = html;
+      statusText.className = `rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs flex items-center gap-2 ${textCls}`;
+
+      // Battery pill matches Net Repair style
+      if (batteryStateMessage) {
+        if (isFault) {
+          batteryStateMessage.className = 'pill border-red-500/40 text-red-300 bg-red-500/10';
+          if (batteryStateText) { batteryStateText.className = 'font-semibold text-red-300'; batteryStateText.textContent = 'FAULT'; }
+        } else if (isWarn) {
+          batteryStateMessage.className = 'pill border-amber-500/40 text-amber-300 bg-amber-500/10';
+          if (batteryStateText) { batteryStateText.className = 'font-semibold text-amber-300'; batteryStateText.textContent = 'WARNING'; }
+        } else {
+          batteryStateMessage.className = 'pill border-emerald-500/40 text-green-300 bg-emerald-500/10';
+          if (batteryStateText) { batteryStateText.className = 'font-semibold text-green-300'; batteryStateText.textContent = 'OK'; }
+        }
+      }
+    }
+
+    function renderStitcher(){
+      const pct = (sim.stitchCounts / MAX_COUNTS) * 100;
+      stitchInd.style.left = `calc(${pct}% - 1px)`; // center 3px indicator visually
+      const mode = sim.stitchMode;
+      const isCrimp = mode==='CRIMPING';
+      stitchStateText.textContent = mode;
+      stitchStateText.className = isCrimp ? 'font-semibold text-red-300' : 'font-semibold text-green-300';
+      if (stitchStatePill) {
+        stitchStatePill.className = isCrimp
+          ? 'pill border-red-500/40 text-red-300 bg-red-500/10'
+          : 'pill border-emerald-500/40 text-green-300 bg-emerald-500/10';
+      }
+      if (stapleCountEl) stapleCountEl.textContent = String(sim.stapleCount);
+    }
+
+    function renderAux(){
+      // Light
+      if (lightValue && typeof sim.lightPct==='number') lightValue.textContent = `${Math.round(sim.lightPct)}%`;
+      // Camera tilt (smoothed -> display)
+      if (camTiltValue) camTiltValue.textContent = `${Math.round(sim.camTilt)}\u00B0`;
+      // Gain value
+      if (rovGainValue) rovGainValue.textContent = `${Math.round(sim.gainPct)}%`;
+    }
+
+    function tick(dt){
+      const now = performance.now();
+      // Heading dynamics
+      sim.yawRate = lerpExp(sim.yawRate, sim.targetYawRate, dt, 0.6);
+      sim.heading = wrap360(sim.heading + sim.yawRate*dt);
+      setCompassHeading(sim.heading);
+
+      // Current smoothing
+      sim.amps = lerpExp(sim.amps, sim.targetAmps, dt, 0.35);
+      setCurrentUI(sim.amps);
+
+      // Voltage model
+      const Vrest = 15.8;
+      const sag = (sim.amps>0 ? 0.0012*sim.amps : 0.0006*sim.amps);
+      sim.voltage += (-(sim.voltage - Vrest)/25 - sag) * dt;
+      sim.voltage = Math.min(MAX_VOLTAGE, Math.max(MIN_VOLTAGE-0.4, sim.voltage));
+      const vPct = Math.max(0, ((sim.voltage - MIN_VOLTAGE) / (MAX_VOLTAGE - MIN_VOLTAGE)) * 100);
+      setGaugeArc('voltage-arc', vPct);
+      voltageValue.textContent = `${sim.voltage.toFixed(2)}V`;
+      const vCol = vPct>50? '#22c55e' : (vPct>25? '#eab308' : '#ef4444');
+      const vArc = document.getElementById('voltage-arc'); if(vArc) vArc.style.stroke = vCol;
+
+      const tPct = Math.min(100, Math.max(0, (sim.temp / 100) * 100));
+      setGaugeArc('temp-arc', tPct);
+      tempValue.textContent = `${sim.temp.toFixed(1)}°C`;
+      const tArc = document.getElementById('temp-arc');
+      if (tArc){
+        if (sim.temp >= MAX_TEMP)                tArc.style.stroke = '#b91c1c';
+        else if (sim.temp >= WARNING_TEMP_LIMIT) tArc.style.stroke = '#ef4444';
+        else if (sim.temp >= NORMAL_TEMP_LIMIT)  tArc.style.stroke = '#eab308';
+        else                                     tArc.style.stroke = '#22c55e';
+      }
+      if (tempMeter){
+        tempMeter.setAttribute('aria-valuenow', sim.temp.toFixed(1));
+        tempMeter.setAttribute('aria-valuetext', `${sim.temp.toFixed(1)} degrees Celsius`);
+      }
+
+      // Depth / Link / Water Temp
+      sim.depth = lerpExp(sim.depth, sim.targetDepth, dt, 2.5);
+      displayDepth = lerpExp(displayDepth, sim.depth, dt, 0.18);
+      depthValue.textContent = `${displayDepth.toFixed(1)} m`;
+      setDepthRibbon(displayDepth);
+
+      sim.waterTemp = lerpExp(sim.waterTemp, sim.targetWaterTemp, dt, 20);
+      displayWater = lerpExp(displayWater, sim.waterTemp, dt, 0.22);
+      waterTempValue.textContent = `${displayWater.toFixed(1)}°C`;
+
+      sim.link = lerpExp(sim.link, sim.targetLink, dt, 1.8); linkQualityValue.textContent=`Link ${Math.round(sim.link)}%`;
+
+      // Camera tilt smoothing
+      sim.camTilt = lerpExp(sim.camTilt, sim.camTiltTarget, dt, 0.25);
+
+      // Stitcher FSM
+      advanceStitchFSM(dt, now);
+      renderStitcher();
+      renderAux();
+
+      // Status + Uptime + Modes
+      applyStatus(vPct);
+      uptimeValue.textContent = formatUptime(Date.now()-start);
+      if (Math.floor(Date.now()/20000)%2===0){ modeIdx=(modeIdx+1)%modes.length; modePill.textContent=modes[modeIdx]; }
+    }
+
+    function animate(now){
+      const dt = Math.min(0.05, (now - (sim.lastT||now))/1000);
+      sim.lastT = now;
+      if (now >= sim.retargetAt) retarget();
+      tick(dt);
+      requestAnimationFrame(animate);
+    }
+
+    // Init manip & compass and start loop
+    setManipState('STOPPED');
+    buildCompass();
+    buildDepthRibbon();
+    // init compass scaling & auto adjust
+    function updateCompassScale(){
+      const vid = (videoEl && videoEl.clientWidth && videoEl.clientHeight) ? videoEl : document.getElementById('video-container');
+      const ribbon = document.getElementById('compass-ribbon');
+      if(!vid || !ribbon) return;
+
+      const baseW = 1080; // match video width (1080x1920 portrait)
+      const w = Math.max(1, vid.clientWidth || 1);
+      const h = Math.max(1, vid.clientHeight || 1);
+
+      const scale = Math.max(0.7, Math.min(1.2, w / baseW));
+      document.documentElement.style.setProperty('--compass-scale', scale.toFixed(3));
+
+      const topPx = Math.max(12, Math.min(Math.round(h * 0.08), 80)); // keep visible in short viewports
+  ribbon.style.top = topPx + 'px';
+  ribbon.style.zIndex = '100';
+  // Respect user hidden state: do NOT force display inline if 'hidden' class present.
+  // (Tailwind .hidden supplies display:none; leaving display unset prevents overrides.)
+    }
+    updateCompassScale();
+    if (videoEl) {
+      // --- Safari/iOS inline autoplay hardening ---
+      videoEl.setAttribute('muted','');
+      videoEl.muted = true;
+      videoEl.setAttribute('playsinline','');
+      videoEl.setAttribute('webkit-playsinline','');
+      videoEl.setAttribute('autoplay','');
+      videoEl.preload = 'auto';
+      videoEl.disableRemotePlayback = true;
+      videoEl.playsInline = true;
+      videoEl.load();
+
+      const tryPlay = () => {
+        try {
+          // If codec unsupported, surface a friendly message and controls
+          const canMp4 = videoEl.canPlayType && videoEl.canPlayType('video/mp4; codecs="avc1.42E01E, mp4a.40.2"');
+          if (canMp4 === '') {
+            if (videoStatus) videoStatus.innerText = 'Video format not supported by this browser.';
+            videoEl.setAttribute('controls','');
+          }
+          const p = videoEl.play && videoEl.play();
+          if (p && typeof p.then === 'function') {
+            p.then(()=>{
+              if (videoStatus) videoStatus.style.display = 'none';
+              if (videoPlayBtn) videoPlayBtn.style.display = 'none';
+              videoEl.removeAttribute('controls');
+            }).catch(()=>{
+              if (videoPlayBtn) videoPlayBtn.style.display = 'block';
+              if (videoStatus) videoStatus.style.display = '';
+              videoEl.setAttribute('controls','');
+            });
+          }
+        } catch(_) {
+          if (videoPlayBtn) videoPlayBtn.style.display = 'block';
+          videoEl.setAttribute('controls','');
+        }
+      };
+      videoEl.addEventListener('loadeddata', () => {
+        if (videoStatus) videoStatus.style.display = 'none';
+        tryPlay();
+        updateCompassScale();
+      });
+      videoEl.addEventListener('play', () => { if (videoStatus) videoStatus.style.display = 'none'; if(videoPlayBtn) videoPlayBtn.style.display='none'; });
+      videoEl.addEventListener('error', () => { if (videoStatus) videoStatus.style.display = ''; if(videoPlayBtn) videoPlayBtn.style.display='block'; });
+      // Diagnostics for file-not-found / decode errors
+      videoEl.addEventListener('error', () => {
+        const err = (videoEl.error && videoEl.error.code) ? videoEl.error.code : 0;
+        if (videoStatus) videoStatus.textContent = err ? `Video error (code ${err}). Check file path/codec.` : 'Video error. Check file path/codec.';
+      });
+      // kick off autoplay attempt
+      tryPlay();
+      if (videoPlayBtn) {
+        videoPlayBtn.addEventListener('click', () => {
+          // keep muted to satisfy autoplay policies; remove if you want audio
+          videoEl.muted = true;
+          videoEl.removeAttribute('controls');
+          videoEl.load();
+          tryPlay();
+        });
+      }
+
+      // --- Local file loader ---
+      let _objectURL = null;
+      function loadSelected(file){
+        if (!file) return;
+        if (_objectURL) { try{ URL.revokeObjectURL(_objectURL); }catch(_){} _objectURL = null; }
+        _objectURL = URL.createObjectURL(file);
+        videoEl.src = _objectURL;
+        videoEl.load();
+        tryPlay();
+      }
+      if (videoLoadBtn) { videoLoadBtn.addEventListener('click', ()=>{ videoFile && videoFile.click(); }); }
+      if (videoFile) { videoFile.addEventListener('change', (e)=>{ const f = e.target.files && e.target.files[0]; loadSelected(f); }); }
+    }
+    if (window.ResizeObserver){
+      const ro = new ResizeObserver(()=>updateCompassScale());
+      const vidEl = document.getElementById('video-container');
+      if (vidEl) ro.observe(vidEl);
+    }
+    window.addEventListener('resize', updateCompassScale);
+    window.addEventListener('resize', ()=> setDepthRibbon(displayDepth));
+
+    // --- Resizable right dock ---
+    (function setupDockResize(){
+      if(!rightDock || !dockResizer) return;
+      const MIN_W = 220, MAX_W = 520;
+      // restore width
+      try{ const saved = parseInt(localStorage.getItem('dockW')||'',10); if(saved && saved>=MIN_W && saved<=MAX_W){ rightDock.style.flexBasis = saved+"px"; } }catch(_){ }
+      let startX=0, startW=0, dragging=false;
+      const onMove = (e)=>{
+        if(!dragging) return; const x = (e.touches? e.touches[0].clientX : e.clientX); const dx = startX - x; // dragging left increases width? adjust sign
+        const newW = Math.max(MIN_W, Math.min(MAX_W, startW + dx));
+        rightDock.style.flexBasis = newW + 'px';
+      };
+      const onUp = ()=>{ if(!dragging) return; dragging=false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onUp); try{ const w = parseInt(getComputedStyle(rightDock).flexBasis)|| rightDock.clientWidth; localStorage.setItem('dockW', String(w)); }catch(_){ } };
+      const onDown = (e)=>{ dragging=true; startX = (e.touches? e.touches[0].clientX : e.clientX); const fb = getComputedStyle(rightDock).flexBasis; startW = parseInt(fb)|| rightDock.clientWidth; document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp); document.addEventListener('touchmove', onMove, {passive:false}); document.addEventListener('touchend', onUp); e.preventDefault(); };
+      dockResizer.addEventListener('mousedown', onDown);
+      dockResizer.addEventListener('touchstart', onDown, {passive:false});
+      // keyboard resizing
+      dockResizer.addEventListener('keydown', (e)=>{
+        const step = (e.shiftKey? 40 : 20);
+        const fb = parseInt(getComputedStyle(rightDock).flexBasis)|| rightDock.clientWidth;
+        if(e.key==='ArrowLeft'){ const w = Math.max(MIN_W, fb + step); rightDock.style.flexBasis=w+'px'; try{ localStorage.setItem('dockW', String(w)); }catch(_){ } e.preventDefault(); }
+        if(e.key==='ArrowRight'){ const w = Math.max(MIN_W, Math.min(MAX_W, fb - step)); rightDock.style.flexBasis=w+'px'; try{ localStorage.setItem('dockW', String(w)); }catch(_){ } e.preventDefault(); }
+      });
+    })();
+
+    // --- Dock visibility (hide/show entire dock) ---
+    (function setupDockVisibility(){
+      const root = document.body;
+      // restore hidden state
+      try{
+        const hidden = localStorage.getItem('dockHidden')==='1';
+        if(hidden){ root.classList.add('dock-hidden'); btnHideDock && btnHideDock.setAttribute('aria-pressed','true'); if(btnHideDock) btnHideDock.textContent='Show Dock'; }
+      }catch(_){ }
+      if(btnHideDock){
+        btnHideDock.addEventListener('click', ()=>{
+          const nowHidden = !document.body.classList.toggle('dock-hidden'); // toggle returns true if class now present -> invert
+          const hidden = document.body.classList.contains('dock-hidden');
+          try{ localStorage.setItem('dockHidden', hidden?'1':'0'); }catch(_){ }
+          btnHideDock.setAttribute('aria-pressed', hidden? 'true':'false');
+          btnHideDock.textContent = hidden ? 'Show Dock' : 'Hide Dock';
+        });
+      }
+    })();
+
+
+    // --- Drag & Snap for dock panels ---
+    (function setupDragAndSnap(){
+      const dock = document.getElementById('right-dock');
+      const main = document.getElementById('main');
+      if(!dock || !main) return;
+
+      const PANELS = ['panel-stitcher','panel-aux','panel-power'];
+
+      // Restore stored modes/positions
+      PANELS.forEach(id=>{
+        try{
+          const mode = localStorage.getItem('panelMode:'+id) || 'dock';
+          const p = document.getElementById(id);
+          if(!p) return;
+          if(mode==='float'){
+            makeFloating(p);
+            const pos = JSON.parse(localStorage.getItem('panelPos:'+id) || '{}');
+            if(Number.isFinite(pos.x) && Number.isFinite(pos.y)){
+              p.style.left = pos.x+'px';
+              p.style.top  = pos.y+'px';
+            } else {
+              // default positions to avoid overlap
+              const idx = PANELS.indexOf(id);
+              p.style.left = (12 + idx*16) + 'px';
+              p.style.top  = (12 + idx*16) + 'px';
+            }
+          }
+        }catch(_){ }
+      });
+
+      function makeFloating(panel){
+        if(panel.classList.contains('floating-panel')) return;
+        const rect = panel.getBoundingClientRect();
+        const mainRect = main.getBoundingClientRect();
+        panel.classList.add('floating-panel');
+        panel.style.left = Math.max(8, Math.min(mainRect.width- panel.offsetWidth - 8, rect.left - mainRect.left)) + 'px';
+        panel.style.top  = Math.max(8, Math.min(mainRect.height- panel.offsetHeight - 8, rect.top  - mainRect.top )) + 'px';
+        main.appendChild(panel);
+        try{ localStorage.setItem('panelMode:'+panel.id,'float'); }catch(_){ }
+      }
+      function makeDocked(panel, beforeEl){
+        panel.classList.remove('floating-panel');
+        panel.style.left=''; panel.style.top='';
+        if(beforeEl){ dock.insertBefore(panel, beforeEl); } else { dock.appendChild(panel); }
+        try{ localStorage.setItem('panelMode:'+panel.id,'dock'); }catch(_){ }
+        saveDockOrder();
+      }
+      function saveDockOrder(){
+        try{
+          const ids=[...dock.querySelectorAll('.dock-panel')].map(x=>x.id);
+          localStorage.setItem('dockOrder', JSON.stringify(ids));
+        }catch(_){ }
+      }
+      // Restore order if saved
+      try{
+        const ord = JSON.parse(localStorage.getItem('dockOrder')||'[]');
+        if(Array.isArray(ord) && ord.length){
+          ord.forEach(id=>{ const el=document.getElementById(id); if(el && el.parentElement===dock) dock.appendChild(el); });
+        }
+      }catch(_){ }
+
+      // Attach handlers to headers
+      [...document.querySelectorAll('.dock-panel')].forEach(panel=>{
+        const header = panel.querySelector('h3');
+        if(!header) return;
+        header.style.userSelect='none';
+        let dragging=false, dx=0, dy=0, startX=0, startY=0; let placeholder=null;
+
+        const onMove=(e)=>{
+          if(!dragging) return;
+          const pt = getPoint(e);
+          const x = pt.x - dx; const y = pt.y - dy;
+          panel.style.left = x+'px'; panel.style.top = y+'px';
+          panel.classList.add('dragging');
+
+          // If over dock area -> show placeholder position
+          const overDock = isOver(dock, pt);
+          if(overDock){
+            if(!placeholder){ placeholder=document.createElement('div'); placeholder.className='dock-placeholder'; }
+            if(!placeholder.parentElement){ dock.appendChild(placeholder); }
+            // find insert index by vertical midpoint
+            const children=[...dock.querySelectorAll('.dock-panel')].filter(x=>x!==panel);
+            let inserted=false;
+            for(let i=0;i<children.length;i++){
+              const r=children[i].getBoundingClientRect();
+              if(pt.y < r.top + r.height/2){ dock.insertBefore(placeholder, children[i]); inserted=true; break; }
+            }
+            if(!inserted){ dock.appendChild(placeholder); }
+          } else {
+            if(placeholder && placeholder.parentElement){ placeholder.parentElement.removeChild(placeholder); }
+          }
+        };
+        const onUp=(e)=>{
+          if(!dragging) return;
+          dragging=false;
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          document.removeEventListener('touchmove', onMove);
+          document.removeEventListener('touchend', onUp);
+
+          panel.classList.remove('dragging');
+          const pt = getPoint(e);
+          // Drop logic: if over dock -> dock at placeholder; else float, snapping
+          const overDock = isOver(dock, pt);
+          if(overDock){
+            const beforeEl = (placeholder && placeholder.parentElement===dock) ? placeholder.nextElementSibling : null;
+            if(placeholder && placeholder.parentElement){ placeholder.parentElement.removeChild(placeholder); }
+            makeDocked(panel, beforeEl);
+          } else {
+            if(placeholder && placeholder.parentElement){ placeholder.parentElement.removeChild(placeholder); }
+            makeFloating(panel);
+            // snap to edges of main
+            snapToEdges(panel);
+            storePos(panel);
+          }
+        };
+        const onDown=(e)=>{
+          if(e.button===2) return; // ignore right click
+          const pt = getPoint(e);
+          startX = pt.x; startY = pt.y;
+          const rect = panel.getBoundingClientRect();
+          dx = startX - rect.left; dy = startY - rect.top;
+          // If panel is docked, temporarily move to main to drag freely
+          if(!panel.classList.contains('floating-panel')){
+            makeFloating(panel);
+          }
+          dragging=true;
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+          document.addEventListener('touchmove', onMove, {passive:false});
+          document.addEventListener('touchend', onUp);
+          e.preventDefault();
+        };
+        header.addEventListener('mousedown', onDown);
+        header.addEventListener('touchstart', onDown, {passive:false});
+      });
+
+      function getPoint(e){
+        const t = e.touches && e.touches[0];
+        return { x: (t?t.clientX:e.clientX), y: (t?t.clientY:e.clientY) };
+      }
+      function isOver(target, pt){
+        const r = target.getBoundingClientRect();
+        return pt.x>=r.left && pt.x<=r.right && pt.y>=r.top && pt.y<=r.bottom;
+      }
+      function snapToEdges(panel){
+        const SNAP=16, GRID=4;
+        const mainRect = main.getBoundingClientRect();
+        const r = panel.getBoundingClientRect();
+        let x = r.left - mainRect.left; let y = r.top - mainRect.top;
+        // snap to edges if close
+        if(Math.abs(x-8) < SNAP) x=8;
+        if(Math.abs(y-8) < SNAP) y=8;
+        const right = mainRect.width - (x + r.width);
+        const bottom = mainRect.height - (y + r.height);
+        if(Math.abs(right-8) < SNAP) x = mainRect.width - r.width - 8;
+        if(Math.abs(bottom-8) < SNAP) y = mainRect.height - r.height - 8;
+        // grid snap
+        x = Math.round(x/GRID)*GRID; y = Math.round(y/GRID)*GRID;
+        panel.style.left = x+'px'; panel.style.top = y+'px';
+      }
+      function storePos(panel){
+        try{
+          const mainRect = main.getBoundingClientRect();
+          const r = panel.getBoundingClientRect();
+          const pos = { x: Math.round(r.left - mainRect.left), y: Math.round(r.top - mainRect.top) };
+          localStorage.setItem('panelPos:'+panel.id, JSON.stringify(pos));
+        }catch(_){ }
+      }
+    })();
+
+    requestAnimationFrame(animate);
+
+    // --- Tests ---
+    function runTests(){
+      try{
+        c.group && c.group('%cROV UI Tests','color:#93c5fd');
+        // Aux systems existence
+        c.assert(!!document.getElementById('aux-widget'),'Aux widget exists');
+        c.assert(!!lightSlider && !!lightValue,'Light controls exist');
+        c.assert(!!manipStateText && !!manipOpenBtn && !!manipCloseBtn && !!manipStopBtn,'Manipulator controls exist');
+        c.assert(!!camTiltSlider && !!camTiltValue,'Camera tilt controls exist');
+        c.assert(!!rovGainSlider && !!rovGainValue,'Gain controls exist');
+        // Manip state toggles
+        setManipState('OPEN');  c.assert(manipStateText.textContent==='OPEN','Manip OPEN');
+        setManipState('CLOSE'); c.assert(manipStateText.textContent==='CLOSE','Manip CLOSE');
+        setManipState('STOPPED'); c.assert(manipStateText.textContent==='STOPPED','Manip STOPPED');
+        // Light slider sync
+        if (lightSlider){ lightSlider.value='77'; lightSlider.dispatchEvent(new Event('input')); c.assert(lightValue.textContent.includes('77'), 'Light value reflects slider'); }
+        // Camera tilt sync & bounds
+        if (camTiltSlider){ camTiltSlider.value='-30'; camTiltSlider.dispatchEvent(new Event('input')); c.assert(camTiltValue.textContent.includes('-30'),'Tilt shows -30°'); camTiltSlider.value='90'; camTiltSlider.dispatchEvent(new Event('input')); c.assert(camTiltValue.textContent.includes('90'),'Tilt shows 90°'); }
+        // Gain slider sync & bounds
+        if (rovGainSlider){ rovGainSlider.value='73'; rovGainSlider.dispatchEvent(new Event('input')); c.assert(rovGainValue.textContent.includes('73'),'Gain shows 73%'); rovGainSlider.value='0'; rovGainSlider.dispatchEvent(new Event('input')); c.assert(rovGainValue.textContent.includes('0'),'Gain shows 0%'); }
+        // Power label shows watts
+        c.assert(/W$/.test((document.getElementById('current-value')||{}).textContent||''), 'Power readout shows W');
+        // Staple counter exists and decrements on crimp completion
+        const scEl = document.getElementById('staple-count');
+        c.assert(!!scEl, 'Staple count element exists');
+        const beforeStaples = sim.stapleCount = 100;
+        sim.stitchPhase = 'DWELL_CRIMP';
+        sim.stitchPhaseUntil = performance.now() - 1; // force completion
+        advanceStitchFSM(0, performance.now());
+        c.assert(sim.stapleCount === beforeStaples - 1 && sim.stitchPhase === 'MOVE_BACK', 'Staple decrements at crimp completion');
+        // Staple reset works any time
+        if (stapleResetBtn){
+          sim.stapleCount = 3;
+          stapleResetBtn.click();
+          c.assert(sim.stapleCount === 100, 'Staple Reset button sets count to 100');
+        }
+        c.log('%cAux widget tests OK','color:#22c55e');
+        c.groupEnd && c.groupEnd();
+      }catch(e){ c.error('Tests failed:', e); }
+    }
+
+    runTests();
+    bindMenu();
+    setTimeout(()=>{ applyVisibilityFromUI(); }, 0);
+  });
+  </script>
+</body>
+</html>

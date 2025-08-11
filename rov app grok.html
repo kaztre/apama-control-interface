@@ -12,7 +12,11 @@
   <style>
     /* Bottom overlay info bar (Depth + Water Temp) */
   .video-infobar{ position:absolute; left:.5rem; right:.5rem; bottom:.5rem; display:flex; align-items:stretch; justify-content:space-between; gap:.5rem; background:rgba(0,0,0,.65); border:1px solid rgba(255,255,255,.15); border-radius:.5rem; padding:.35rem .5rem; pointer-events:auto; z-index:102; }
-  .video-infobar .row{ flex:1 1 0; display:flex; align-items:center; justify-content:center; gap:.35rem; padding:.18rem .5rem; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:.375rem; min-width:0; }
+  .video-infobar .row{ flex:1 1 0; display:flex; align-items:center; justify-content:center; gap:.3rem; padding:.14rem .4rem; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:.375rem; min-width:0; }
+  .video-infobar{ gap:.4rem; }
+  .video-infobar .row.hcu{ flex:1.25 1 0; }
+  .video-infobar .row .lbl{ font-size:.65rem; }
+  .video-infobar .row .val{ font-size:.8rem; }
   .video-infobar .row .lbl{ white-space:nowrap; }
   .video-infobar .row .val{ white-space:nowrap; }
   .video-infobar .row.interact{ cursor:pointer; user-select:none; position:relative; transition:background-color .18s ease, border-color .18s ease, box-shadow .25s ease, transform .15s ease; }
@@ -26,6 +30,9 @@
   .video-infobar .row.interact[aria-pressed="true"]{ background:rgba(96,165,250,.18); border-color:rgba(96,165,250,.45); box-shadow:0 0 0 1px rgba(96,165,250,.35), 0 0 12px -2px rgba(59,130,246,.55); }
   .video-infobar .row.interact[aria-expanded="true"]::after,
   .video-infobar .row.interact[aria-pressed="true"]::after{ opacity:.4; background:radial-gradient(circle at 50% 50%, rgba(96,165,250,.55), rgba(96,165,250,0) 70%); }
+  /* Controller disconnected state */
+  .video-infobar .row.controller-disconnected{ background:rgba(185,28,28,.25); border-color:rgba(239,68,68,.45); }
+  .video-infobar .row.controller-disconnected .val{ color:#fca5a5; }
   /* Generic popover (not used now for light) */
   .popover{ position:absolute; background:rgba(17,24,39,.95); border:1px solid rgba(55,65,81,.8); border-radius:.5rem; box-shadow:0 8px 20px rgba(0,0,0,.45); z-index:350; }
   .popover.hidden{ display:none; }
@@ -55,6 +62,45 @@
   .power-meter .tick.major{ background:rgba(255,255,255,.28); }
   @media (prefers-reduced-motion:reduce){ .power-fill{ transition:none; } }
     .status-indicator-dot { width:10px; height:10px; border-radius:50%; }
+  /* Prominent armed/disarmed badge */
+  .status-badge { display:flex; align-items:center; gap:.5rem; padding:.35rem .85rem; font-weight:600; letter-spacing:.5px; font-size:.75rem; border:1px solid; border-radius:999px; position:relative; line-height:1; }
+  .status-badge .status-indicator-dot { width:14px; height:14px; background:currentColor; border-radius:50%; box-shadow:0 0 4px currentColor,0 0 10px currentColor inset; position:relative; }
+  .apama-compact-heading{ font-size:1rem; font-weight:600; letter-spacing:.5px; line-height:1.05; display:inline-flex; flex-direction:column; }
+  .apama-compact-heading .ac-unit-id{ font-size:.65rem; font-weight:600; letter-spacing:1.5px; margin-top:2px; opacity:.8; }
+  /* Logo overlay */
+  .logo-load-btn{ position:absolute; right:.75rem; bottom:4.2rem; z-index:210; padding:.35rem .7rem; border-radius:.45rem; border:1px solid rgba(255,255,255,.25); background:rgba(0,0,0,.55); color:#f1f5f9; font-size:.6rem; font-weight:600; letter-spacing:.6px; cursor:pointer; backdrop-filter:blur(3px) saturate(140%); -webkit-backdrop-filter:blur(3px) saturate(140%); box-shadow:0 2px 4px rgba(0,0,0,.5); pointer-events:auto; }
+  .logo-load-btn:hover{ background:rgba(0,0,0,.7); border-color:rgba(255,255,255,.4); }
+  .logo-overlay{ position:absolute; right:0; bottom:0; max-width:160px; max-height:80px; object-fit:contain; z-index:205; opacity:.95; filter:drop-shadow(0 2px 4px rgba(0,0,0,.55)) drop-shadow(0 0 4px rgba(0,0,0,.5)); transition:opacity .15s ease, transform .15s ease; pointer-events:auto; cursor:grab; }
+  .logo-overlay.dragging{ opacity:.85; cursor:grabbing; transform:scale(1.02); }
+  .logo-overlay.hidden{ display:none; }
+  .logo-overlay:hover{ opacity:1; }
+  /* Critical Alerts */
+  .critical-alerts{ position:absolute; top:9rem; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:.5rem; z-index:220; pointer-events:none; max-width:80%; }
+  .crit-msg{ position:relative; padding:.65rem 1rem .65rem 2.75rem; font-size:.8rem; line-height:1.25; font-weight:600; letter-spacing:.4px; color:#fecaca; background:linear-gradient(135deg,rgba(24,0,0,.85),rgba(69,10,10,.85)); border:1px solid rgba(248,113,113,.55); border-radius:.75rem; box-shadow:0 4px 14px -2px rgba(0,0,0,.55),0 0 0 1px rgba(127,29,29,.6),0 0 18px rgba(239,68,68,.35); backdrop-filter:blur(4px) saturate(140%); -webkit-backdrop-filter:blur(4px) saturate(140%); overflow:hidden; }
+  .crit-msg::before{ content:""; position:absolute; left:.85rem; top:50%; width:14px; height:14px; border-radius:50%; background:#ef4444; box-shadow:0 0 6px #ef4444,0 0 12px #ef4444; transform:translateY(-50%); animation:critPulse 1.2s ease-in-out infinite; }
+  .crit-msg.warn{ color:#fde68a; border-color:rgba(251,191,36,.55); background:linear-gradient(135deg,rgba(66,32,6,.88),rgba(120,53,15,.85)); box-shadow:0 4px 14px -2px rgba(0,0,0,.55),0 0 0 1px rgba(120,53,15,.6),0 0 18px rgba(251,191,36,.35); }
+  .crit-msg.warn::before{ background:#fbbf24; box-shadow:0 0 6px #fbbf24,0 0 12px #fbbf24; }
+  .crit-msg.good{ color:#d1fae5; border-color:rgba(16,185,129,.55); background:linear-gradient(135deg,rgba(0,55,37,.88),rgba(6,78,59,.85)); box-shadow:0 4px 14px -2px rgba(0,0,0,.55),0 0 0 1px rgba(6,95,70,.6),0 0 18px rgba(16,185,129,.35); }
+  .crit-msg.good::before{ background:#10b981; box-shadow:0 0 6px #10b981,0 0 12px #10b981; animation:none; }
+  @keyframes critPulse{ 0%,100%{ transform:translateY(-50%) scale(1); opacity:1; } 50%{ transform:translateY(-50%) scale(.55); opacity:.35; } }
+  .crit-exit{ position:absolute; top:4px; right:6px; font-size:.65rem; font-weight:700; cursor:pointer; color:#fca5a5; background:transparent; border:none; padding:2px 4px; line-height:1; opacity:.75; }
+  .crit-exit:hover{ opacity:1; color:#fff; }
+  .crit-msg-enter{ animation:critIn .35s cubic-bezier(.4,.0,.2,1); }
+  .crit-msg-leave{ animation:critOut .4s cubic-bezier(.4,.0,.2,1) forwards; }
+  @keyframes critIn{ 0%{ transform:translate(-50%,-12px) scale(.85); opacity:0; } 100%{ transform:translate(-50%,0) scale(1); opacity:1; } }
+  @keyframes critOut{ 0%{ opacity:1; transform:translate(-50%,0) scale(1); } 100%{ opacity:0; transform:translate(-50%,-8px) scale(.9); } }
+  .status-armed { color:#34d399; background:linear-gradient(135deg,#022c22,#064e3b); border-color:#059669; box-shadow:0 0 0 1px #065f46,0 0 14px #05966980; }
+  .status-disarmed { color:#f87171; background:linear-gradient(135deg,#3b0d0d,#7f1d1d); border-color:#dc2626; box-shadow:0 0 0 1px #7f1d1d,0 0 16px #dc262680; }
+  @keyframes armedGlow { 0%,100%{box-shadow:0 0 0 1px #065f46,0 0 14px #05966980;} 50%{box-shadow:0 0 0 1px #065f46,0 0 6px #05966960;} }
+  @keyframes disarmedPulse { 0%,100%{box-shadow:0 0 0 1px #7f1d1d,0 0 20px #dc2626b0;} 50%{box-shadow:0 0 0 1px #7f1d1d,0 0 6px #dc262660;} }
+  /* Replace subtle glow with stronger flash (similar to record light) for ARMED */
+    /* Match recording style fade/scale but in green */
+    @keyframes armedFlash{ 0%{ transform:scale(1); opacity:1; background:#10b981; box-shadow:0 0 6px #10b981,0 0 14px #10b981; }
+      50%{ transform:scale(.45); opacity:.18; background:#065f46; box-shadow:0 0 2px #065f46,0 0 4px #065f4680; }
+      100%{ transform:scale(1); opacity:1; background:#10b981; box-shadow:0 0 6px #10b981,0 0 14px #10b981; } }
+    .status-armed { animation:none; }
+    .status-armed .status-indicator-dot{ animation:armedFlash 1.8s ease-in-out infinite; }
+  .status-disarmed { animation:disarmedPulse 1.4s ease-in-out infinite; }
     .pulse-anim { animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
     @keyframes pulse { 50% { opacity:.5 } }
 
@@ -66,7 +112,8 @@
     /* When right dock hidden, reserve space for infobar so video content stays above it */
     .video-canvas.no-dock{ height:calc(100% - var(--infobar-h,60px)); margin-bottom:var(--infobar-h,60px); transition:height .25s ease, margin-bottom .25s ease; }
 .video-el{ width:100%; height:100%; object-fit:contain; aspect-ratio: 9 / 16; background:#000; display:block; }
-    .hud{ pointer-events:none; position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-start; z-index:2; }
+  .hud{ pointer-events:none; position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-start; z-index:2; }
+  .hud > .rec-badge, .hud > .logo-load-btn, .hud > #logo-overlay, .hud > .compass-ribbon, .hud > .depth-ribbon, .hud > .heading-box, .hud > .critical-alerts, .hud > .reticle{ pointer-events:auto; }
     .video-play-btn{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:5; padding:.4rem .9rem; border-radius:.5rem; border:1px solid rgba(255,255,255,.25); background:rgba(0,0,0,.65); color:#fff; font-size:.875rem; display:none; }
     .video-play-btn:focus{ outline:2px solid #60a5fa; outline-offset:2px; }
   /* Elevated above infobar (z-index 102) so it remains clickable */
@@ -125,7 +172,16 @@
 
     /* Stitcher widget */
     .stitch-wrap{ display:flex; flex-direction:column; gap:.5rem; }
-    .stitch-bar{ position:relative; height:16px; background:linear-gradient(180deg,#0b1220,#0a0f1a); border:1px solid rgba(255,255,255,.12); border-radius:999px; overflow:hidden; }
+  .stitch-bar{ position:relative; height:24px; background:linear-gradient(180deg,#0b1220,#081018); border:1px solid rgba(255,255,255,.18); border-radius:999px; overflow:hidden; box-shadow:inset 0 0 4px rgba(0,0,0,.6), 0 2px 4px rgba(0,0,0,.4); }
+  #stitch-calibrate-btn{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; letter-spacing:.6px; color:#f0fdf4; background:linear-gradient(90deg,rgba(16,185,129,.18),rgba(52,211,153,.08)); text-shadow:0 1px 2px rgba(0,0,0,.85); cursor:pointer; transition:background-color .25s ease, opacity .25s ease; }
+  #stitch-calibrate-btn:hover{ background:linear-gradient(90deg,rgba(16,185,129,.28),rgba(52,211,153,.16)); }
+  #stitch-calibrate-btn.calibrating{ animation:calibPulse 1.1s ease-in-out infinite; background:linear-gradient(90deg,rgba(5,150,105,.35),rgba(16,185,129,.15)); }
+  #stitch-calibrate-btn.calibrated{ background:linear-gradient(90deg,rgba(34,197,94,.35),rgba(16,185,129,.15)); color:#bbf7d0; cursor:default; }
+  /* Flashing red for uncalibrated */
+  @keyframes uncalibFlash { 0%{ background:linear-gradient(90deg,rgba(185,28,28,.65),rgba(239,68,68,.25)); box-shadow:0 0 8px rgba(239,68,68,.85),0 0 14px rgba(239,68,68,.45); } 50%{ background:linear-gradient(90deg,rgba(127,29,29,.35),rgba(153,27,27,.12)); box-shadow:0 0 3px rgba(239,68,68,.4),0 0 6px rgba(239,68,68,.2); } 100%{ background:linear-gradient(90deg,rgba(185,28,28,.65),rgba(239,68,68,.25)); box-shadow:0 0 8px rgba(239,68,68,.85),0 0 14px rgba(239,68,68,.45); } }
+  #stitch-calibrate-btn.uncalibrated{ animation:uncalibFlash 1.4s ease-in-out infinite; color:#fecaca; }
+  @keyframes calibPulse{ 0%{filter:brightness(1);} 50%{filter:brightness(1.35);} 100%{filter:brightness(1);} }
+  .stitch-bar .calib-progress{ position:absolute; left:0; top:0; bottom:0; width:0; background:linear-gradient(90deg,rgba(16,185,129,.35),rgba(45,212,191,.55)); opacity:.45; mix-blend-mode:screen; pointer-events:none; }
     .stitch-zone{ position:absolute; top:0; bottom:0; right:0; width:33.3333%; background:linear-gradient(90deg, rgba(34,197,94,.05), rgba(34,197,94,.25)); box-shadow:inset 0 0 0 1px rgba(34,197,94,.35); }
     .stitch-ind{ position:absolute; top:-6px; width:0; height:28px; left:0; }
     .stitch-ind::before{ content:""; position:absolute; left:-1px; top:0; bottom:0; width:3px; background:#eab308; box-shadow:0 0 8px rgba(234,179,8,.8); border-radius:2px; }
@@ -234,8 +290,8 @@
     /* Right-side vertical widget dock over the video */
     .right-dock{ position:absolute; top:0; right:0; bottom:0; width:280px; max-width:35%; padding:.5rem; display:flex; flex-direction:column; gap:.5rem; z-index:3; pointer-events:none; }
     .right-dock .dock-panel{ pointer-events:auto; background:rgba(17,24,39,.72); border:1px solid rgba(55,65,81,.8); border-radius:.5rem; box-shadow:0 4px 10px rgba(0,0,0,.35); backdrop-filter:saturate(120%) blur(3px); -webkit-backdrop-filter:saturate(120%) blur(3px); display:flex; flex-direction:column; min-height:120px; overflow:auto; }
-    .right-dock .dock-panel h3{ font-size:.9rem; font-weight:700; padding:.5rem .6rem; border-bottom:1px solid rgba(55,65,81,.6); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border-top-left-radius:.5rem; border-top-right-radius:.5rem; }
-    .right-dock .dock-panel .dock-body{ padding:.5rem .6rem; font-size:.8rem; color:#9ca3af; }
+  .right-dock .dock-panel h3{ font-size:.75rem; font-weight:700; padding:.3rem .5rem; line-height:1.05; border-bottom:1px solid rgba(55,65,81,.6); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border-top-left-radius:.5rem; border-top-right-radius:.5rem; }
+  .right-dock .dock-panel .dock-body{ padding:.35rem .5rem .45rem; font-size:.75rem; line-height:1.15; color:#9ca3af; }
     @media (max-width: 1280px){ .right-dock{ display:none; } }
 
     /* Side-by-side row for video + right dock (no overlap) */
@@ -243,8 +299,8 @@
     .video-pane{ position:relative; flex:1 1 auto; min-width:0; display:flex; align-items:center; justify-content:center; }
     .dock-static{ flex:0 0 280px; max-width:35%; height:100%; padding:.5rem; display:flex; flex-direction:column; gap:.5rem; z-index:1; }
     .dock-static .dock-panel{ background:rgba(17,24,39,.72); border:1px solid rgba(55,65,81,.8); border-radius:.5rem; box-shadow:0 4px 10px rgba(0,0,0,.35); backdrop-filter:saturate(120%) blur(3px); -webkit-backdrop-filter:saturate(120%) blur(3px); display:flex; flex-direction:column; min-height:120px; overflow:auto; }
-    .dock-static .dock-panel h3{ font-size:.9rem; font-weight:700; padding:.5rem .6rem; border-bottom:1px solid rgba(55,65,81,.6); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border-top-left-radius:.5rem; border-top-right-radius:.5rem; }
-    .dock-static .dock-panel .dock-body{ padding:.5rem .6rem; font-size:.8rem; color:#9ca3af; overflow:hidden; }
+  .dock-static .dock-panel h3{ font-size:.75rem; font-weight:700; padding:.3rem .5rem; line-height:1.05; border-bottom:1px solid rgba(55,65,81,.6); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border-top-left-radius:.5rem; border-top-right-radius:.5rem; }
+  .dock-static .dock-panel .dock-body{ padding:.35rem .5rem .45rem; font-size:.75rem; line-height:1.15; color:#9ca3af; overflow:hidden; }
 
   /* Surface Power OFF visual state */
   .surface-power-off #surface-power-widget{ filter:grayscale(.55) brightness(.85); }
@@ -295,6 +351,14 @@
     .btn-ghost{ border:1px solid rgba(148,163,184,.3); background:rgba(0,0,0,.25); color:#e5e7eb; border-radius:.375rem; font-size:.75rem; padding:.2rem .5rem; }
     .btn-ghost:focus-visible{ outline:2px solid #60a5fa; outline-offset:2px; }
     .btn-ghost .kbd{ font-size:.65em; opacity:.8; margin-left:.25rem; }
+  /* Mission meta inputs */
+  .mission-meta{ display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; background:rgba(0,0,0,.25); padding:.25rem .4rem; border:1px solid rgba(255,255,255,.08); border-radius:.5rem; }
+  .mission-meta input{ background:rgba(17,24,39,.65); border:1px solid rgba(148,163,184,.35); border-radius:.375rem; padding:.15rem .4rem; font-size:.65rem; color:#e5e7eb; width:110px; letter-spacing:.3px; }
+  .mission-meta input.wide-task{ width:180px; }
+  .mission-meta .meta-datetime-display{ background:rgba(17,24,39,.65); border:1px solid rgba(148,163,184,.35); border-radius:.375rem; padding:.15rem .4rem; font-size:.6rem; color:#f1f5f9; font-weight:600; letter-spacing:.5px; min-width:140px; text-align:center; }
+  .mission-meta input:focus{ outline:2px solid #60a5fa; outline-offset:1px; border-color:#60a5fa; }
+  .mission-meta input::placeholder{ color:#64748b; }
+  @media (max-width:1100px){ .mission-meta{ gap:.25rem; } .mission-meta input{ width:88px; } }
 
     /* --- Drag & snap for widgets --- */
     .dragging{ opacity:.92; box-shadow:0 12px 30px rgba(0,0,0,.45) !important; }
@@ -322,13 +386,20 @@
           <div class="row"><label for="chk-reticle">Center Reticle</label><input id="chk-reticle" type="checkbox" checked></div>
         </div>
         <div>
-          <div class="text-sm text-gray-400">Platform</div>
-          <div class="text-base font-semibold">APAMA ROV Console</div>
+          <div class="apama-compact-heading">Apama Compact <span class="ac-unit-id">#001</span></div>
+        </div>
+        <div class="mission-meta" id="mission-meta" aria-label="Mission metadata">
+          <input id="meta-location"  type="text" placeholder="Location" aria-label="Location">
+          <input id="meta-task"     class="wide-task" type="text" placeholder="Task" aria-label="Task name">
+          <input id="meta-client"   type="text" placeholder="Client" aria-label="Client name">
+          <input id="meta-operator" type="text" placeholder="Operator" aria-label="Operator name">
+          <div id="meta-datetime" class="meta-datetime-display" aria-label="Current date and time" role="text">-- -- --</div>
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <span id="status-text" class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs flex items-center gap-2 text-green-400">
-          <span id="status-indicator" class="status-indicator-dot bg-green-400 pulse-anim"></span> ARMED
+        <span id="status-text" class="status-badge status-armed" aria-live="polite" aria-label="ROV armed status">
+          <span id="status-indicator" class="status-indicator-dot"></span>
+          <span class="status-label">ARMED</span>
         </span>
         <div id="mode-picker" class="relative">
           <button id="mode-pill" type="button" class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs text-gray-200 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-sky-500/60" aria-haspopup="true" aria-expanded="false" aria-label="Select ROV mode">DEPTH HOLD ▾</button>
@@ -338,7 +409,8 @@
             <button type="button" role="menuitem" class="mode-opt" data-mode="FREEDOF">FREEDOF</button>
           </div>
         </div>
-        <span class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs text-gray-200">Uptime <span id="uptime-value" class="font-semibold ml-1 num">00:00:00</span></span>
+  <span class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs text-gray-200">Uptime <span id="uptime-value" class="font-semibold ml-1 num">00:00:00</span></span>
+  <span class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs text-gray-200" aria-label="Accumulated dive time below surface">Dive <span id="dive-time-value" class="font-semibold ml-1 num">00:00:00</span></span>
         <span class="rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs flex items-center gap-2">
           <svg width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M1 9h2V7H1v2Zm3 0h2V5H4v4Zm3 0h2V3H7v6Zm3 0h2V1h-2v8Zm3 0h2V4h-2v5Z" fill="#9ca3af"/></svg>
           <span id="link-quality-value" class="text-gray-200 num">Link 96%</span>
@@ -360,6 +432,11 @@
           <!-- HUD Overlay -->
           <div class="hud">
             <div class="rec-badge" id="rec-badge">REC <span id="rec-dot" class="inline-block w-2 h-2 rounded-full bg-red-500"></span></div>
+              <!-- Audio warning element (hidden) -->
+              <audio id="depth-audio" src="andrew.mp3" preload="auto" style="display:none"></audio>
+            <button id="logo-load-btn" type="button" class="logo-load-btn" aria-label="Load logo">LOGO</button>
+            <input id="logo-file" type="file" accept="image/png,image/svg+xml" style="display:none" aria-hidden="true">
+            <img id="logo-overlay" class="logo-overlay hidden" alt="Logo overlay" />
             <div class="compass-ribbon" id="compass-ribbon">
               <div class="compass-track" id="compass-track"></div>
               <div class="compass-center"></div>
@@ -371,6 +448,8 @@
                 <div class="pointer-cap"></div>
               </div>
             </div>
+            <!-- Critical Alerts Overlay -->
+            <div id="critical-alerts" class="critical-alerts" aria-live="assertive" aria-label="Critical system messages"></div>
             <!-- Vertical Depth Ribbon -->
             <div class="depth-ribbon" id="depth-ribbon" aria-label="Depth scale">
               <div class="depth-track" id="depth-track"></div>
@@ -436,6 +515,23 @@
                 </div>
               </div>
             </div>
+            <div id="controller-row" class="row interact" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-label="Hand controller connection status and axes">
+              <span class="lbl" title="Hand Controller Unit">HCU</span><span id="controller-status" class="val num">DISCONNECTED</span>
+              <div id="hcu-popover" class="popover hidden" role="dialog" aria-modal="false" aria-label="Hand Controller Axes">
+                <div class="p-2 flex flex-col gap-2 w-56">
+                  <div class="text-[10px] tracking-wide text-gray-400 px-1">Axes</div>
+                  <div class="grid grid-cols-3 gap-2 text-[10px] font-semibold">
+                    <div class="flex flex-col items-start gap-0.5"><span class="text-gray-400">X</span><span id="hcu-axis-x" class="text-gray-200 num">0</span></div>
+                    <div class="flex flex-col items-start gap-0.5"><span class="text-gray-400">Y</span><span id="hcu-axis-y" class="text-gray-200 num">0</span></div>
+                    <div class="flex flex-col items-start gap-0.5"><span class="text-gray-400">Z</span><span id="hcu-axis-z" class="text-gray-200 num">0</span></div>
+                    <div class="flex flex-col items-start gap-0.5"><span class="text-gray-400">Pitch</span><span id="hcu-axis-pitch" class="text-gray-200 num">0</span></div>
+                    <div class="flex flex-col items-start gap-0.5"><span class="text-gray-400">Roll</span><span id="hcu-axis-roll" class="text-gray-200 num">0</span></div>
+                    <div class="flex flex-col items-start gap-0.5"><span class="text-gray-400">Yaw</span><span id="hcu-axis-yaw" class="text-gray-200 num">0</span></div>
+                  </div>
+                  <div class="text-[9px] text-gray-500 italic">Values simulated (pct)</div>
+                </div>
+              </div>
+            </div>
             <div id="light-row" class="row interact" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false">
               <span class="lbl">Light</span><span id="light-value" class="val num">35%</span>
               <div id="light-popover" class="popover hidden" role="dialog" aria-modal="false" aria-label="Adjust light brightness">
@@ -495,6 +591,8 @@
                   <div class="stitch-bar" id="stitch-bar">
                     <div class="stitch-zone" id="stitch-zone"></div>
                     <div class="stitch-ind" id="stitch-ind"></div>
+                    <div class="calib-progress" id="stitch-calib-progress"></div>
+                    <div id="stitch-calibrate-btn" role="button" aria-pressed="false" aria-label="Calibrate stitcher position">UNCALIBRATED</div>
                   </div>
                   <div class="mt-2 flex items-center gap-3">
                     <label for="crimp-force" class="w-28 text-xs text-gray-400 select-none">Crimp force</label>
@@ -507,25 +605,26 @@
           </div>
           <!-- 3D ROV Attitude panel -->
           <div id="panel-attitude" data-panel-id="panel-attitude" class="dock-panel" aria-label="Right-side widget dock - ROV Attitude">
-            <h3 class="flex items-center justify-between gap-2">ROV Attitude</h3>
+            <h3 class="flex items-center justify-between gap-2">
+              <span class="flex items-center gap-3">
+                <span>ROV Attitude</span>
+                <span class="flex items-center gap-2 text-[10px] font-semibold tracking-wide bg-black/30 px-2 py-0.5 rounded border border-white/10">
+                  <span class="text-sky-400">P:</span><span id="att-pitch" class="num">0.0°</span>
+                  <span class="text-emerald-400">R:</span><span id="att-roll" class="num">0.0°</span>
+                  <span class="text-pink-400">Y:</span><span id="att-yaw" class="num">000°</span>
+                </span>
+                <!-- Yaw lock removed per request; always displaying live yaw -->
+              </span>
+            </h3>
             <div class="dock-body">
               <section id="attitude-widget" class="flex flex-col gap-2">
                 <div id="attitude-viewport" class="w-full h-48 bg-[#0b1220] border border-gray-700 relative overflow-hidden rounded flex items-center justify-center">
                   <div id="attitude-loading" class="text-[10px] text-gray-400 tracking-wide">Model not loaded</div>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 mt-1">
                   <button id="attitude-load-btn" type="button" class="seg-btn px-2 py-1" aria-label="Load 3D ROV model">Load Model</button>
                   <button id="attitude-reload-btn" type="button" class="seg-btn px-2 py-1 hidden" aria-label="Change 3D ROV model">Change Model</button>
                   <input id="attitude-file" type="file" accept=".glb,model/gltf-binary" style="display:none" aria-hidden="true">
-                  <label class="flex items-center gap-1 text-[10px] text-gray-400 select-none cursor-pointer" title="Lock heading at 0 (disable yaw)">
-                    <input id="attitude-lock-yaw" type="checkbox" class="accent-sky-500" checked>
-                    <span>Lock Yaw</span>
-                  </label>
-                </div>
-                <div class="grid grid-cols-3 gap-1 text-[10px] text-gray-300">
-                  <div class="flex flex-col items-start"><span class="text-gray-500">YAW</span><span id="att-yaw" class="num font-semibold">000°</span></div>
-                  <div class="flex flex-col items-start"><span class="text-gray-500">PITCH</span><span id="att-pitch" class="num font-semibold">0.0°</span></div>
-                  <div class="flex flex-col items-start"><span class="text-gray-500">ROLL</span><span id="att-roll" class="num font-semibold">0.0°</span></div>
                 </div>
               </section>
             </div>
@@ -684,14 +783,60 @@
     const tempBar = document.getElementById('temp-bar');
     const tempValue = document.getElementById('temp-value');
     const statusText = document.getElementById('status-text');
+    const criticalAlerts = document.getElementById('critical-alerts');
+  const depthAudioEl = document.getElementById('depth-audio');
+  let lastDisarmedState = null; // track for animation (avoid re-render each frame)
+  // Critical alert system
+  const activeAlerts = new Map(); // key -> element
+  function pushAlert(key, msg, level='crit', ttl=6000){
+    if(!criticalAlerts) return; const existing = activeAlerts.get(key);
+    if(existing){ const txt=existing.querySelector('.crit-text'); if(txt) txt.textContent=msg; return; }
+    const el=document.createElement('div'); el.className=`crit-msg crit-msg-enter ${level==='warn'?'warn':(level==='good'?'good':'')}`; el.dataset.key=key;
+    el.innerHTML=`<span class="crit-text">${msg}</span><button class="crit-exit" aria-label="Dismiss alert">×</button>`;
+    el.querySelector('.crit-exit').addEventListener('click',()=>dismissAlert(key));
+    criticalAlerts.appendChild(el); activeAlerts.set(key,el);
+    if(ttl>0){ setTimeout(()=>{ dismissAlert(key); }, ttl); }
+  }
+  function dismissAlert(key){ const el=activeAlerts.get(key); if(!el) return; el.classList.add('crit-msg-leave'); setTimeout(()=>{ if(el.parentNode) el.parentNode.removeChild(el); activeAlerts.delete(key); },380); }
+  function ensureCleared(key){ if(activeAlerts.has(key)) dismissAlert(key); }
+  // Demo leak-only alert
+  (function demoAlerts(){ setTimeout(()=>{ pushAlert('demo-leak2','LEAK DETECTED: Aft housing moisture','crit',0); }, 1200); })();
     const batteryStateMessage = document.getElementById('battery-state-message');
     const batteryStateText = document.getElementById('battery-state-text');
     const uptimeValue = document.getElementById('uptime-value');
+  const diveTimeValue = document.getElementById('dive-time-value');
   // Mode picker refs (declare early so guard array below can safely reference)
   const modePill = document.getElementById('mode-pill');
   const modeMenu = document.getElementById('mode-menu');
   const modePicker = document.getElementById('mode-picker');
     const recDot = document.getElementById('rec-dot');
+    const logoBtn = document.getElementById('logo-load-btn');
+    const logoFile = document.getElementById('logo-file');
+    const logoImg = document.getElementById('logo-overlay');
+    if(logoBtn && logoFile){
+      logoBtn.addEventListener('click',()=>{ logoFile.click(); });
+      logoFile.addEventListener('change',()=>{
+        const f = logoFile.files && logoFile.files[0];
+        if(!f) return;
+        if(!/image\/(png|svg\+xml)/.test(f.type)){ alert('Please select a PNG or SVG image.'); return; }
+        const reader = new FileReader();
+        reader.onload = e=>{
+          if(logoImg){ logoImg.src = e.target.result; logoImg.classList.remove('hidden'); }
+        };
+        reader.readAsDataURL(f);
+      });
+      // Double-click logo to hide it
+      if(logoImg){ logoImg.addEventListener('dblclick', ()=>{ logoImg.classList.add('hidden'); }); }
+    }
+    // Draggable logo
+    if(logoImg){
+      // Restore saved position
+      try{ const saved=localStorage.getItem('logo:pos'); if(saved){ const o=JSON.parse(saved); if(Number.isFinite(o.x)&&Number.isFinite(o.y)){ logoImg.style.left=o.x+'px'; logoImg.style.top=o.y+'px'; logoImg.style.right='auto'; logoImg.style.bottom='auto'; } } }catch(_){ }
+      let drag=false, offX=0, offY=0;
+      logoImg.addEventListener('mousedown', e=>{ drag=true; logoImg.classList.add('dragging'); const rect=logoImg.getBoundingClientRect(); offX=e.clientX-rect.left; offY=e.clientY-rect.top; e.preventDefault(); });
+      window.addEventListener('mousemove', e=>{ if(!drag) return; const parent=document.getElementById('video-container'); const pRect=parent.getBoundingClientRect(); let x=e.clientX - pRect.left - offX; let y=e.clientY - pRect.top - offY; x=Math.max(0, Math.min(pRect.width - logoImg.offsetWidth, x)); y=Math.max(0, Math.min(pRect.height - logoImg.offsetHeight, y)); logoImg.style.left=x+'px'; logoImg.style.top=y+'px'; logoImg.style.right='auto'; logoImg.style.bottom='auto'; });
+      window.addEventListener('mouseup', ()=>{ if(drag){ drag=false; logoImg.classList.remove('dragging'); try{ const rect=logoImg.getBoundingClientRect(); const parent=document.getElementById('video-container').getBoundingClientRect(); localStorage.setItem('logo:pos', JSON.stringify({x:rect.left-parent.left, y:rect.top-parent.top})); }catch(_){ } } });
+    }
     let recordingActive = true; // future hook: toggle as needed
     function setRecording(on){
       recordingActive = !!on;
@@ -737,6 +882,17 @@
     // Aux Systems DOM
   // Light display (moved to bottom bar)
   const lightValue = document.getElementById('light-value');
+  const controllerStatusEl = document.getElementById('controller-status');
+    const controllerRow = document.getElementById('controller-row');
+    const hcuPopover = document.getElementById('hcu-popover');
+    const axisEls = {
+      x: document.getElementById('hcu-axis-x'),
+      y: document.getElementById('hcu-axis-y'),
+      z: document.getElementById('hcu-axis-z'),
+      pitch: document.getElementById('hcu-axis-pitch'),
+      roll: document.getElementById('hcu-axis-roll'),
+      yaw: document.getElementById('hcu-axis-yaw')
+    };
   const lightRow = document.getElementById('light-row');
   const lightPopover = document.getElementById('light-popover');
   const lightPopSlider = document.getElementById('light-pop-slider');
@@ -889,6 +1045,54 @@
       }
     }
 
+    // HCU popup toggle
+    if(controllerRow && hcuPopover){
+      const toggle=()=>{
+        const open = hcuPopover.classList.contains('hidden');
+        hcuPopover.classList.toggle('hidden', !open);
+        controllerRow.setAttribute('aria-expanded', open? 'true':'false');
+        // position popover relative to row
+        if(open){
+          hcuPopover.style.position='absolute';
+          hcuPopover.style.bottom='100%';
+          hcuPopover.style.left='0';
+          hcuPopover.style.top='';
+          hcuPopover.style.marginBottom='0.35rem';
+          hcuPopover.style.marginTop='';
+        }
+      };
+      controllerRow.addEventListener('click', toggle);
+      controllerRow.addEventListener('keydown', e=>{ if(['Enter',' '].includes(e.key)){ e.preventDefault(); toggle(); } });
+      document.addEventListener('click', e=>{ if(!controllerRow.contains(e.target) && !hcuPopover.contains(e.target)){ hcuPopover.classList.add('hidden'); controllerRow.setAttribute('aria-expanded','false'); } });
+    }
+
+    // --- Mission Meta Persistence ---
+    (function missionMeta(){
+      const ids=['location','task','client','operator']; // removed vehicle id
+      const els={};
+      ids.forEach(k=>{ els[k]=document.getElementById('meta-'+k); });
+      // Load
+      ids.forEach(k=>{ try{ const v=localStorage.getItem('meta:'+k); if(v && els[k]) els[k].value=v; }catch(_){ } });
+      let t=null; const save=()=>{ t=null; ids.forEach(k=>{ const el=els[k]; if(!el) return; try{ localStorage.setItem('meta:'+k, el.value||''); }catch(_){ } }); };
+      ids.forEach(k=>{ const el=els[k]; if(!el) return; el.addEventListener('input', ()=>{ if(t) clearTimeout(t); t=setTimeout(save,400); }); });
+      // Live date/time updater
+      const dtEl = document.getElementById('meta-datetime');
+      function pad(n){ return String(n).padStart(2,'0'); }
+      function updateDT(){
+        if(!dtEl) return;
+        const d=new Date();
+        const yyyy=d.getFullYear();
+        const mm=pad(d.getMonth()+1);
+        const dd=pad(d.getDate());
+        const hh=pad(d.getHours());
+        const mi=pad(d.getMinutes());
+        const ss=pad(d.getSeconds());
+        dtEl.textContent = `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+      }
+      updateDT();
+      setInterval(updateDT,1000);
+    })();
+
     // Always-active Staple Reset button
     if (stapleResetBtn){
       stapleResetBtn.addEventListener('click', ()=>{
@@ -942,7 +1146,8 @@
     const MAX_COUNTS = STROKE_MM * COUNTS_PER_MM; // single source of truth
 
     // Uptime utils
-    const start=Date.now(); const formatUptime=ms=>{ const s=Math.floor(ms/1000); const h=String(Math.floor(s/3600)).padStart(2,'0'); const m=String(Math.floor((s%3600)/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${h}:${m}:${ss}`; };
+  const start=Date.now(); const formatUptime=ms=>{ const s=Math.floor(ms/1000); const h=String(Math.floor(s/3600)).padStart(2,'0'); const m=String(Math.floor((s%3600)/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${h}:${m}:${ss}`; };
+  let diveAccumMs = 0; let lastDepth = 0; let lastFrameTime = performance.now();
 
   // Mode selection dropdown (already declared above)
     const MODES = ['DEPTH HOLD','MANUAL','FREEDOF'];
@@ -1185,6 +1390,7 @@
       depth: 12.5, targetDepth: 12.5,
       waterTemp: 18.2, targetWaterTemp: 18.4,
       link: 96, targetLink: 96,
+  controllerConnected: false, nextControllerToggle: performance.now() + 4000,
       // Aux
       lightPct: 35,
       manipState: 'STOPPED', // 'OPEN' | 'CLOSE' | 'STOPPED'
@@ -1416,7 +1622,14 @@
   initGaugeTrack('surface-current-track');
 
     // Display smoothing state for infobar
-    let displayDepth = 12.5;
+  let displayDepth = 12.5;
+  // Depth ramp configuration: linearly ramp to 300 m over 10 seconds, then slight overshoot to trigger audio warning
+  const DEPTH_RAMP_DURATION_MS = 10000; // 10s
+  const DEPTH_RAMP_END_M = 300;
+  const DEPTH_RAMP_OVERSHOOT_M = 0.4; // go a little past to clearly cross threshold
+  const depthRampStart = performance.now();
+  let depthRampDone = false;
+  let depthAudioPlayed = false;
     let displayWater = 18.2;
 
     // Stitcher FSM parameters
@@ -1470,10 +1683,15 @@
     function retarget(){
       sim.targetYawRate = (Math.random()<0.4? (Math.random()*8-4) : (Math.random()*20-10));
       sim.targetAmps = (Math.random()<0.15? (Math.random()*-6-2) : (Math.random()*80+10));
-      sim.targetDepth = Math.max(0, sim.depth + (Math.random()*1.2-0.6));
+      if(depthRampDone){
+        sim.targetDepth = Math.max(0, sim.depth + (Math.random()*1.2-0.6));
+      }
       sim.targetWaterTemp = sim.waterTemp + (Math.random()*0.4-0.2);
       sim.targetLink = Math.max(35, Math.min(100, sim.link + (Math.random()*12-6)));
-      sim.retargetAt = performance.now() + (1200 + Math.random()*1600);
+  sim.retargetAt = performance.now() + (1200 + Math.random()*1600);
+  // Simulated leak event for demo
+  if(Math.random()<0.035 && !activeAlerts.has('leak')) pushAlert('leak','LEAK DETECTED: Internal humidity spike','crit',0);
+  if(activeAlerts.has('leak') && Math.random()<0.02){ dismissAlert('leak'); pushAlert('leak-cleared','Leak condition cleared','good',4000); }
     }
 
     function applyStatus(vPct){
@@ -1488,16 +1706,31 @@
         }
         return; // skip normal logic during reboot
       }
-      const t = sim.temp;
+    const t = sim.temp;
       const isFault = (t >= MAX_TEMP) || (vPct <= 25);
       const isWarn  = !isFault && ((t >= NORMAL_TEMP_LIMIT) || (vPct <= 40));
+  // Critical alert triggers
+  if (t >= MAX_TEMP){ pushAlert('temp-critical', `CRITICAL: Core Temp ${t.toFixed(1)}°C`, 'crit', 0); }
+  else if (t >= NORMAL_TEMP_LIMIT){ pushAlert('temp-warn', `Warning: Temp High ${t.toFixed(1)}°C`, 'warn', 5000); ensureCleared('temp-critical'); }
+  else { ensureCleared('temp-critical'); ensureCleared('temp-warn'); }
+  if (vPct <= 25){ pushAlert('voltage-critical', `CRITICAL: Battery ${vPct.toFixed(0)}%`, 'crit', 0); }
+  else if (vPct <= 40){ pushAlert('voltage-warn', `Warning: Battery ${vPct.toFixed(0)}%`, 'warn', 5000); ensureCleared('voltage-critical'); }
+  else { ensureCleared('voltage-critical'); ensureCleared('voltage-warn'); }
   // Simplified top status: only ARMED (normal) or DISARMED (any warn/fault)
   const disarmed = isWarn || isFault;
-  const dotCls = disarmed ? 'bg-red-500' : 'bg-green-400';
-  const label  = disarmed ? 'DISARMED' : 'ARMED';
-  const textCls = disarmed ? 'text-red-400' : 'text-green-400';
-  statusText.innerHTML = `<span class=\"status-indicator-dot ${dotCls}\"></span> ${label}`;
-  statusText.className = `rounded-full border border-gray-700 bg-[#0b1220] px-2 py-0.5 text-xs flex items-center gap-2 ${textCls}`;
+  if (disarmed !== lastDisarmedState) {
+    const label  = disarmed ? 'DISARMED' : 'ARMED';
+    statusText.className = `status-badge ${disarmed ? 'status-disarmed' : 'status-armed'}`;
+    // Try to reuse existing label span if present
+    const existingLabel = statusText.querySelector('.status-label');
+    const existingDot = statusText.querySelector('.status-indicator-dot');
+    if (existingLabel && existingDot) {
+      existingLabel.textContent = label;
+    } else {
+      statusText.innerHTML = `<span class=\"status-indicator-dot\"></span><span class=\"status-label\">${label}</span>`;
+    }
+    lastDisarmedState = disarmed;
+  }
 
       // Battery pill matches Net Repair style
       if (batteryStateMessage) {
@@ -1528,6 +1761,54 @@
       }
       if (stapleCountEl) stapleCountEl.textContent = String(sim.stapleCount);
     }
+
+    // --- Stitcher Calibration Logic ---
+    (function setupStitchCalibration(){
+      const calibBtn = document.getElementById('stitch-calibrate-btn');
+      const calibProg = document.getElementById('stitch-calib-progress');
+      if(!calibBtn || !calibProg) return;
+  let calibState = 'uncalibrated'; // 'uncalibrated' | 'calibrating' | 'calibrated'
+  calibBtn.classList.add('uncalibrated');
+      let calibStart = 0; let calibDur = 4800; // ms
+      let lastFlash = 0;
+      function begin(){
+        if(calibState==='calibrated' || calibState==='calibrating') return;
+  calibState='calibrating'; calibStart=performance.now();
+  calibBtn.classList.remove('uncalibrated');
+        calibBtn.textContent='CALIBRATING…';
+        calibBtn.classList.add('calibrating');
+        calibBtn.setAttribute('aria-pressed','true');
+        calibProg.style.width='0%'; calibProg.style.opacity='0.35';
+      }
+      function complete(){
+        calibState='calibrated';
+        calibBtn.textContent='CALIBRATED';
+        calibBtn.classList.remove('calibrating');
+  calibBtn.classList.add('calibrated');
+  calibBtn.classList.remove('uncalibrated');
+        calibBtn.setAttribute('aria-pressed','false');
+        calibProg.style.width='100%'; calibProg.style.opacity='0.18';
+        setTimeout(()=>{ calibProg.style.transition='width 0.6s ease, opacity 0.6s ease'; calibProg.style.opacity='0'; }, 600);
+      }
+      calibBtn.addEventListener('click', ()=>{ if(calibState==='uncalibrated') begin(); });
+      // Inject into main tick for progress animation
+      const _origTick = tick;
+      tick = function(dt){
+        _origTick(dt);
+        if(calibState==='calibrating'){
+          const now = performance.now();
+          const t = Math.min(1, (now - calibStart)/calibDur);
+          // Use easeInOutQuad for smoother progress
+          const ease = t<0.5? 2*t*t : -1+(4-2*t)*t;
+          calibProg.style.width = (ease*100).toFixed(1)+'%';
+          // Cycle the main stitch indicator back and forth to simulate travel
+          const cycle = Math.sin(ease*Math.PI*3)*0.5+0.5; // 3 oscillations
+          sim.stitchCounts = cycle * MAX_COUNTS;
+          if(now - lastFlash > 450){ lastFlash = now; calibBtn.style.filter='brightness(1.5)'; setTimeout(()=>{ calibBtn.style.filter=''; }, 150); }
+          if(t>=1){ complete(); }
+        }
+      };
+    })();
 
     function renderAux(){
   // Light
@@ -1665,7 +1946,27 @@
       }
 
       // Depth / Link / Water Temp
-      sim.depth = lerpExp(sim.depth, sim.targetDepth, dt, 2.5);
+      // Depth ramp override: during initial ramp phase, drive depth linearly to 300m (+overshoot) over configured duration.
+      if(!depthRampDone){
+        const elapsed = performance.now() - depthRampStart;
+        const t = Math.min(1, elapsed / DEPTH_RAMP_DURATION_MS);
+        const target = DEPTH_RAMP_END_M + DEPTH_RAMP_OVERSHOOT_M * t; // slight progressive overshoot
+        sim.depth = target; sim.targetDepth = target; // lock both so other logic doesn't fight it
+        if(t >= 1){ depthRampDone = true; }
+        // Play audio once after passing threshold (just past 300m)
+        if(!depthAudioPlayed && sim.depth >= DEPTH_RAMP_END_M + 0.05){
+          const aud = document.getElementById('depth-audio');
+            if(aud){
+              const playPromise = aud.play();
+              if(playPromise && typeof playPromise.then==='function'){
+                playPromise.catch(()=>{/* ignore autoplay block */});
+              }
+            }
+          depthAudioPlayed = true;
+        }
+      } else {
+        sim.depth = lerpExp(sim.depth, sim.targetDepth, dt, 2.5);
+      }
       displayDepth = lerpExp(displayDepth, sim.depth, dt, 0.18);
       depthValue.textContent = `${displayDepth.toFixed(1)} m`;
       setDepthRibbon(displayDepth);
@@ -1686,6 +1987,36 @@
 
       // Status + Uptime + Modes
       applyStatus(vPct);
+      // Controller connection simulation (periodic toggle)
+      if(sim.nextControllerToggle && performance.now() >= sim.nextControllerToggle){
+        sim.controllerConnected = !sim.controllerConnected;
+        sim.nextControllerToggle = performance.now() + (7000 + Math.random()*8000);
+      }
+      if(controllerStatusEl){
+        controllerStatusEl.textContent = sim.controllerConnected ? 'CONNECTED' : 'DISCONNECTED';
+        const row = document.getElementById('controller-row');
+        if(row){ row.classList.toggle('controller-disconnected', !sim.controllerConnected); }
+      }
+      // Simulate axes (random walk) when connected; decay toward 0 when disconnected
+      if(sim.controllerConnected){
+        sim.hcuAxes = sim.hcuAxes || {x:0,y:0,z:0,pitch:0,roll:0,yaw:0};
+        for(const k in sim.hcuAxes){
+          let v = sim.hcuAxes[k];
+          v += (Math.random()*0.3-0.15); // random delta
+          v = Math.max(-1, Math.min(1, v));
+          sim.hcuAxes[k]=v;
+        }
+      } else {
+        if(sim.hcuAxes){ for(const k in sim.hcuAxes){ sim.hcuAxes[k]*=0.85; if(Math.abs(sim.hcuAxes[k])<0.02) sim.hcuAxes[k]=0; } }
+      }
+      if(sim.hcuAxes && axisEls.x){
+        axisEls.x.textContent = Math.round(sim.hcuAxes.x*100);
+        axisEls.y.textContent = Math.round(sim.hcuAxes.y*100);
+        axisEls.z.textContent = Math.round(sim.hcuAxes.z*100);
+        axisEls.pitch.textContent = Math.round(sim.hcuAxes.pitch*100);
+        axisEls.roll.textContent = Math.round(sim.hcuAxes.roll*100);
+        axisEls.yaw.textContent = Math.round(sim.hcuAxes.yaw*100);
+      }
       // Reboot lifecycle completion
       if(bmsRebooting && performance.now() >= bmsRebootUntil){
         bmsRebooting = false;
@@ -1696,7 +2027,14 @@
         }
         applyStatus(vPct); // refresh pill with real status
       }
-      uptimeValue.textContent = formatUptime(Date.now()-start);
+  const nowTs = Date.now();
+  uptimeValue.textContent = formatUptime(nowTs-start);
+  // Dive time accumulation (depth > 0.5 considered underwater active time)
+  const pfNow = performance.now();
+  const dtMs = pfNow - lastFrameTime; lastFrameTime = pfNow;
+  const depthNow = sim.depth;
+  if (depthNow > 0.5){ diveAccumMs += dtMs; }
+  if (diveTimeValue) diveTimeValue.textContent = formatUptime(diveAccumMs);
   // Mode no longer auto-cycles; selection persists via dropdown.
     }
 
@@ -1844,25 +2182,18 @@
         if(twist.lengthSq() < 1e-12) twist.set(0,0,0,1); else twist.normalize();
         // Swing is remaining (pitch/roll) rotation
         let swing = twist.clone().invert().multiply(q).normalize();
-        const lockYawEl = document.getElementById('attitude-lock-yaw');
-        const lockYaw = !lockYawEl || lockYawEl.checked;
-        let displayQuat = lockYaw ? swing : q.clone();
+  // Yaw lock removed: always include yaw (full quaternion)
+  let displayQuat = q.clone();
         // Sign continuity to avoid flips
         if(prevDispQuat && displayQuat.dot(prevDispQuat) < 0){ displayQuat.x*=-1; displayQuat.y*=-1; displayQuat.z*=-1; displayQuat.w*=-1; }
         prevDispQuat = displayQuat.clone();
         // Store lastYawExtract for continuity of numeric yaw readout when unlocked
-        if(!lockYaw){
-          // Extract yaw angle from twist quaternion (angle about Y)
-          // angle = 2*acos(w); axis should align with Y, sign from y component
-          const ang = 2*Math.acos(Math.max(-1,Math.min(1,twist.w))); // 0..pi
-            let sign = Math.sign(twist.y) || 1; // direction
-          let yaw = ang * sign;
-          // Wrap to -pi..pi
-          if(yaw > Math.PI) yaw -= 2*Math.PI; else if(yaw < -Math.PI) yaw += 2*Math.PI;
-          lastYawExtract = yaw;
-        } else {
-          lastYawExtract = 0;
-        }
+  // Always compute yaw from twist quaternion
+  const ang = 2*Math.acos(Math.max(-1,Math.min(1,twist.w)));
+  let sign = Math.sign(twist.y) || 1;
+  let yaw = ang * sign;
+  if(yaw > Math.PI) yaw -= 2*Math.PI; else if(yaw < -Math.PI) yaw += 2*Math.PI;
+  lastYawExtract = yaw;
         return displayQuat;
       }
       function continuousAngle(prev, cur){
@@ -1969,12 +2300,7 @@
           const pitchDeg = continuousAngle(prevDispPitch, pitchDegRaw); prevDispPitch = pitchDeg;
           const rollDeg  = continuousAngle(prevDispRoll,  rollDegRaw);  prevDispRoll  = rollDeg;
           // Recompute/display yaw only if unlocked
-          const lockYawEl = document.getElementById('attitude-lock-yaw');
-          const lockYaw = !lockYawEl || lockYawEl.checked;
-          if(yawEl){
-            if(lockYaw){ yawEl.textContent='000°'; }
-            else { yawEl.textContent = THREE.MathUtils.radToDeg(lastYawExtract).toFixed(1)+'°'; }
-          }
+          if(yawEl){ yawEl.textContent = THREE.MathUtils.radToDeg(lastYawExtract).toFixed(1)+'°'; }
           if(pitchEl) pitchEl.textContent = pitchDeg.toFixed(1)+'°';
           if(rollEl) rollEl.textContent  = rollDeg.toFixed(1)+'°';
         }

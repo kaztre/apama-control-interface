@@ -2076,37 +2076,74 @@
             try{
               if(horizonGroup){ scene.remove(horizonGroup); horizonGroup.traverse(o=>{ if(o.geometry) o.geometry.dispose&&o.geometry.dispose(); if(o.material) o.material.dispose&&o.material.dispose(); }); }
               horizonGroup = new THREE.Group(); horizonGroup.name='ArtificialHorizon';
-              const r = maxDim*0.9; const ringSegs=64;
-              const circleGeom = new THREE.CircleGeometry(r, ringSegs);
-              // Convert to line (only perimeter)
-              const edges = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(circleGeom.attributes.position.array.slice(3), 3)); // skip center vertex
-              const lineMat = new THREE.LineBasicMaterial({color:0x446bff, transparent:true, opacity:0.55});
-              const ring = new THREE.LineLoop(edges, lineMat);
-              ring.rotation.x = Math.PI/2; // place flat (Y up)
-              horizonGroup.add(ring);
-              // Cross lines (N-S / E-W) representing axes
-              const crossMat = new THREE.LineBasicMaterial({color:0x88aaff, transparent:true, opacity:0.4});
+              const r = maxDim*0.9; const ringSegs=96;
+              // --- Improved Outer Blue Ring Styling ---
+              // Helper to make a gradient ring texture (alpha fades outward)
+              function makeRingTex(innerR, outerR, color){
+                const size = 256; const cvs = document.createElement('canvas'); cvs.width = cvs.height = size; const ctx = cvs.getContext('2d');
+                const g = ctx.createRadialGradient(size/2,size/2, innerR*size/2, size/2,size/2, outerR*size/2);
+                const col = `rgba(${(color>>16)&255},${(color>>8)&255},${color&255}`;
+                g.addColorStop(0, col + ',0.25)');
+                g.addColorStop(0.55, col + ',0.18)');
+                g.addColorStop(0.9, col + ',0.04)');
+                g.addColorStop(1, col + ',0.0)');
+                ctx.fillStyle = g; ctx.fillRect(0,0,size,size);
+                const tex = new THREE.CanvasTexture(cvs); tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping; tex.needsUpdate = true; return tex;
+              }
+              // Halo (extends slightly beyond main ring)
+              try{
+                const haloTex = makeRingTex(0.62, 1.0, 0x3b82f6);
+                const haloGeom = new THREE.RingGeometry(r*0.62, r*1.05, ringSegs);
+                const haloMat  = new THREE.MeshBasicMaterial({map:haloTex, transparent:true, opacity:1, depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending});
+                const halo = new THREE.Mesh(haloGeom, haloMat); halo.rotation.x = Math.PI/2; horizonGroup.add(halo);
+              }catch(e){ console.warn('Halo ring build failed', e); }
+              // Core luminous band
+              const coreGeom = new THREE.RingGeometry(r*0.90, r*0.995, ringSegs);
+              const coreMat  = new THREE.MeshBasicMaterial({color:0x3b82f6, transparent:true, opacity:0.22, side:THREE.DoubleSide});
+              const core = new THREE.Mesh(coreGeom, coreMat); core.rotation.x = Math.PI/2; horizonGroup.add(core);
+              // Inner thin bright rim and faint secondary rim for depth
+              function makePerimeter(radius, color, opacity){
+                const gCircle = new THREE.CircleGeometry(radius, ringSegs);
+                const pos = gCircle.attributes.position.array.slice(3);
+                const geom = new THREE.BufferGeometry(); geom.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+                const mat = new THREE.LineBasicMaterial({color, transparent:true, opacity});
+                const loop = new THREE.LineLoop(geom, mat); loop.rotation.x = Math.PI/2; horizonGroup.add(loop); return loop;
+              }
+              makePerimeter(r*0.995, 0x60a5fa, 0.85); // outer crisp rim
+              makePerimeter(r*0.905, 0x1d4ed8, 0.35); // inner subtle rim
+              // Cross lines (N-S / E-W) representing axes (slightly brighter + additive look)
+              const crossMat = new THREE.LineBasicMaterial({color:0x93c5fd, transparent:true, opacity:0.55});
               const crossGeom = new THREE.BufferGeometry();
               crossGeom.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array([
                 -r,0,0,  r,0,0, // X axis
                 0,0,-r, 0,0,r   // Z axis (forward/back)
               ]),3));
-              const cross = new THREE.LineSegments(crossGeom, crossMat);
-              cross.rotation.x = Math.PI/2;
-              horizonGroup.add(cross);
+              const cross = new THREE.LineSegments(crossGeom, crossMat); cross.rotation.x = Math.PI/2; horizonGroup.add(cross);
+              // Cardinal glow dots
+              try{
+                const dotGeom = new THREE.SphereGeometry(r*0.018, 12, 12);
+                const dotMat = new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.9});
+                const headingsDots = [0,90,180,270];
+                headingsDots.forEach(deg=>{ const rad=deg*Math.PI/180; const x=Math.sin(rad)*r*0.995; const z=Math.cos(rad)*r*0.995; const m=new THREE.Mesh(dotGeom,dotMat.clone()); m.position.set(x,0.006,z); horizonGroup.add(m); });
+                // Minor glow dots every 30° (smaller & dimmer)
+                const dotGeomSmall = new THREE.SphereGeometry(r*0.011, 10, 10);
+                const dotMatSmall = new THREE.MeshBasicMaterial({color:0x93c5fd, transparent:true, opacity:0.55});
+                for(let a=0;a<360;a+=30){ if(headingsDots.includes(a)) continue; const rad=a*Math.PI/180; const x=Math.sin(rad)*r*0.992; const z=Math.cos(rad)*r*0.992; const m=new THREE.Mesh(dotGeomSmall,dotMatSmall); m.position.set(x,0.004,z); horizonGroup.add(m); }
+              }catch(e){ console.warn('Ring dots failed', e); }
               // Horizon band (thin translucent disc) for subtle plane reference
               const bandGeom = new THREE.RingGeometry(r*0.96, r*1.02, ringSegs);
-              const bandMat = new THREE.MeshBasicMaterial({color:0x3b82f6, transparent:true, opacity:0.08, side:THREE.DoubleSide});
+              const bandMat = new THREE.MeshBasicMaterial({color:0x3b82f6, transparent:true, opacity:0.05, side:THREE.DoubleSide});
               const band = new THREE.Mesh(bandGeom, bandMat);
               band.rotation.x = Math.PI/2;
               horizonGroup.add(band);
               // Compass headings (N,E,S,W) and intermediate ticks
               try{
+                // NOTE: Swapped E/W again to correct their on-screen placement per user report.
                 const headings = [
                   {label:'N', ang:0},
-                  {label:'E', ang:Math.PI/2},
+                  {label:'W', ang:Math.PI/2},
                   {label:'S', ang:Math.PI},
-                  {label:'W', ang:Math.PI*1.5}
+                  {label:'E', ang:Math.PI*1.5}
                 ];
                 function makeLabelSprite(text){
                   const cvs=document.createElement('canvas'); const ctx=cvs.getContext('2d');
@@ -2181,6 +2218,73 @@
               updateOrtho();
               window.addEventListener('resize', updateOrtho);
             }catch(e){ console.warn('Isometric camera setup failed', e); }
+            // Add / enhance green ROV plane reference ring (local to vehicle) with layered glow & ticks.
+            try{
+              const rLocal = maxDim * 0.65;
+              const ringGroup = new THREE.Group(); ringGroup.name='ROVPlaneRing';
+              // Helper: radial gradient ring texture (inner bright -> fade out)
+              function makeGreenRingTex(innerBright=0.60, outer=1.02){
+                const size=256; const cvs=document.createElement('canvas'); cvs.width=cvs.height=size; const ctx=cvs.getContext('2d');
+                const g=ctx.createRadialGradient(size/2,size/2, innerBright*size/2, size/2,size/2, outer*size/2);
+                g.addColorStop(0, 'rgba(16,185,129,0.38)');
+                g.addColorStop(0.4,'rgba(16,185,129,0.22)');
+                g.addColorStop(0.75,'rgba(16,185,129,0.06)');
+                g.addColorStop(1,'rgba(16,185,129,0.0)');
+                ctx.fillStyle=g; ctx.fillRect(0,0,size,size);
+                const tex=new THREE.CanvasTexture(cvs); tex.needsUpdate=true; return tex;
+              }
+              // Halo (additive) slightly larger than ring
+              const haloTex = makeGreenRingTex(0.58,1.05);
+              const haloGeom = new THREE.RingGeometry(rLocal*0.58, rLocal*1.05, 96);
+              const haloMat = new THREE.MeshBasicMaterial({map:haloTex, transparent:true, opacity:1, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide});
+              const halo = new THREE.Mesh(haloGeom, haloMat); halo.rotation.x=Math.PI/2; ringGroup.add(halo);
+              // Core translucent band (solid base)
+              const bandGeom = new THREE.RingGeometry(rLocal*0.90, rLocal*0.995, 96);
+              const bandMat  = new THREE.MeshBasicMaterial({color:0x059669, transparent:true, opacity:0.28, side:THREE.DoubleSide});
+              const band = new THREE.Mesh(bandGeom, bandMat); band.rotation.x=Math.PI/2; ringGroup.add(band);
+              // Outer crisp rim & inner faint rim
+              function addPerimeter(rad,color,opacity){
+                const circ=new THREE.CircleGeometry(rad,128);
+                const pos=circ.attributes.position.array.slice(3);
+                const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+                const m=new THREE.LineBasicMaterial({color, transparent:true, opacity});
+                const loop=new THREE.LineLoop(g,m); loop.rotation.x=Math.PI/2; ringGroup.add(loop); return loop;
+              }
+              addPerimeter(rLocal*0.995, 0x34d399, 0.95); // outer bright
+              addPerimeter(rLocal*0.905, 0x065f46, 0.40); // inner subtle
+              // Refined dashed arc (quarter-segment style) using four short dashed arcs for readability
+              const dashMat = new THREE.LineDashedMaterial({color:0x10b981, dashSize:rLocal*0.10, gapSize:rLocal*0.05, linewidth:1, transparent:true, opacity:0.9});
+              for(let q=0; q<4; q++){
+                const startAng = q * Math.PI/2 + Math.PI/16; // slight gap at quadrant junctions
+                const endAng   = (q+1)*Math.PI/2 - Math.PI/16;
+                const segPts=[]; const steps=48;
+                for(let i=0;i<=steps;i++){ const t=i/steps; const a=startAng + (endAng-startAng)*t; segPts.push(Math.cos(a)*rLocal,0,Math.sin(a)*rLocal); }
+                const segGeom=new THREE.BufferGeometry(); segGeom.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(segPts),3));
+                const seg=new THREE.Line(segGeom, dashMat.clone()); seg.rotation.x=Math.PI/2; seg.computeLineDistances(); ringGroup.add(seg);
+              }
+              // Pitch/Roll ticks every 30° (short) + stronger at 90°/180°
+              const tickGeom = new THREE.BufferGeometry();
+              const tVerts=[]; const shortLen=rLocal*0.03; const longLen=rLocal*0.055;
+              for(let a=0; a<360; a+=30){
+                const rad=a*Math.PI/180; const len = (a%90===0)? longLen : shortLen;
+                const sx=Math.cos(rad)*(rLocal-len); const sz=Math.sin(rad)*(rLocal-len);
+                const ex=Math.cos(rad)*rLocal; const ez=Math.sin(rad)*rLocal;
+                tVerts.push(sx,0.0008,sz, ex,0.0008,ez);
+              }
+              tickGeom.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(tVerts),3));
+              const tickMat = new THREE.LineBasicMaterial({color:0x6ee7b7, transparent:true, opacity:0.65});
+              const ticks = new THREE.LineSegments(tickGeom, tickMat); ticks.rotation.x=Math.PI/2; ringGroup.add(ticks);
+              // Glow dots at forward/back/left/right (vehicle local axes) with subtle color variation
+              const dotGeom = new THREE.SphereGeometry(rLocal*0.018, 10, 10);
+              const axisDots=[{deg:0},{deg:90},{deg:180},{deg:270}];
+              axisDots.forEach((d,i)=>{ const rad=d.deg*Math.PI/180; const x=Math.cos(rad)*rLocal*0.995; const z=Math.sin(rad)*rLocal*0.995; const mat=new THREE.MeshBasicMaterial({color:[0x34d399,0x10b981,0x34d399,0x10b981][i], transparent:true, opacity:0.95}); const m=new THREE.Mesh(dotGeom,mat); m.position.set(x,0.003,z); ringGroup.add(m); });
+              // Subtle inner fill gradient (soften center) - optional aesthetic
+              const innerTex = makeGreenRingTex(0.10,0.95);
+              const innerFillGeom = new THREE.RingGeometry(rLocal*0.15, rLocal*0.88, 64);
+              const innerFillMat = new THREE.MeshBasicMaterial({map:innerTex, transparent:true, opacity:0.9, depthWrite:false, side:THREE.DoubleSide});
+              const innerFill = new THREE.Mesh(innerFillGeom, innerFillMat); innerFill.rotation.x=Math.PI/2; ringGroup.add(innerFill);
+              pivot.add(ringGroup);
+            }catch(e){ console.warn('ROV plane ring add failed', e); }
             scene.add(rovObj);
             setTimeout(()=>{ if(loadingEl) loadingEl && loadingEl.remove(); }, 50);
             threeReady=true; animate3D();
